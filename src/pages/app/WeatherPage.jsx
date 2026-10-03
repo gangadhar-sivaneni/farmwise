@@ -4,6 +4,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useApp } from '../../context/AppContext';
 import { FORECAST } from '../../data/weatherData';
 import {
+  generateDayInsights,
   generateFarmerTips,
   getSoilMoistureInterpretation,
   getSoilTempInterpretation,
@@ -76,44 +77,6 @@ export default function WeatherPage() {
     return dayName(activeIndex, 'long').toUpperCase();
   };
 
-  // Farmer-friendly tips for the left advice card
-  const tips = weatherData?.current
-    ? generateFarmerTips(weatherData.current, weatherData.forecast, dayName)
-    : [
-        {
-          ic: 'rain',
-          t: {
-            en: 'Hold sprays — rain expected',
-            te: 'స్ప్రేలు ఆపండి — వర్షం అవకాశం',
-          },
-          d: {
-            en: 'Rain showers anticipated. Fertilizer or pesticide applied now may wash off. Clear field drains instead. (Rule-based recommendation)',
-            te: 'వర్షం అవకాశం. ఇప్పుడు వేసిన ఎరువు, మందు కొట్టుకుపోవచ్చు. మురుగు కాలువలను సరిచూసుకోండి. (సూచన మాత్రమే)',
-          },
-        },
-        {
-          ic: 'bug',
-          t: {
-            en: 'Humid nights raise pest risk',
-            te: 'తేమ రాత్రులు పురుగు ప్రమాదాన్ని పెంచుతాయి',
-          },
-          d: {
-            en: 'Humid conditions favor fungal growth and fall armyworm. Scout maize whorls and crop leaves.',
-            te: 'తేమ వాతావరణంలో, పంటలో కత్తెర పురుగు కోసం ఆకులను పరిశీలించండి.',
-          },
-        },
-        {
-          ic: 'sun',
-          t: {
-            en: 'Dry conditions: best spraying window',
-            te: 'స్ప్రేకు ఉత్తమ సమయం',
-          },
-          d: {
-            en: 'Dry and calm weather. Spray early morning when wind is under 12 km/h.',
-            te: 'పొడిగా, ప్రశాంతంగా ఉంటుంది. ఉదయం వేళ స్ప్రే చేయండి.',
-          },
-        },
-      ];
 
   const cur = weatherData?.current;
 
@@ -172,6 +135,20 @@ export default function WeatherPage() {
   const dayInsight = isSelectedToday
     ? getIrrigationInsight(cur, weatherData?.forecast)
     : getSelectedDayInsight(selectedDay, panelHeaderTitle, false, cur);
+
+  // 3 Dynamic Farm Insight Rows for the selected day
+  const selectedDayMetrics = {
+    temp: displayTemp,
+    rain: displayRain ?? 0,
+    rainSum: isSelectedToday ? (cur?.precipitation ?? selectedDay.rainSum ?? 0) : (selectedDay.rainSum ?? 0),
+    wind: displayWind ?? 10,
+    humidity: displayHumidity,
+    soilMoist: displaySoilMoist,
+    soilTemp: displaySoilTemp,
+    et0: displayET0,
+  };
+
+  const tips = generateDayInsights(selectedDayMetrics, isSelectedToday);
 
   // Location display
   let locationDisplay = '';

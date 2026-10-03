@@ -413,131 +413,216 @@ export async function reverseGeocode(latitude, longitude) {
  * 2. Pest & fungal disease risk advisory
  * 3. Spraying & field activity window
  */
-export function generateFarmerTips(current, forecast, dayNameFn) {
-  if (!current || !forecast || forecast.length === 0) {
-    return [];
-  }
+/**
+ * Generate 3 dynamic date-specific agricultural insights for the selected day:
+ * 1. Irrigation / Soil
+ * 2. Crop Inspection
+ * 3. Spraying / Farm Activity
+ */
+export function generateDayInsights(dayMetrics, isToday = false) {
+  if (!dayMetrics) return [];
 
-  const tips = [];
-  const days = forecast;
-  const today = days[0] || {};
-  const tomorrow = days[1] || {};
+  const temp = Math.round(dayMetrics.temp ?? 28);
+  const rain = Math.round(dayMetrics.rain ?? 0);
+  const rainSum = Number((dayMetrics.rainSum ?? 0).toFixed(1));
+  const wind = Math.round(dayMetrics.wind ?? 10);
+  const humidity = dayMetrics.humidity != null ? Math.round(dayMetrics.humidity) : null;
+  const et0 = dayMetrics.et0 != null ? Number(dayMetrics.et0.toFixed(1)) : null;
+  const soilMoist = dayMetrics.soilMoist != null ? Number(dayMetrics.soilMoist.toFixed(2)) : null;
 
-  const todayRain = today.rain ?? current.precipitationProbability ?? 0;
-  const tomorrowRain = tomorrow.rain ?? 0;
-  const todaySum = today.rainSum ?? current.precipitation ?? 0;
+  const insights = [];
 
-  // 1. Rule-based Irrigation Recommendation
-  if (todayRain >= 50 || tomorrowRain >= 50 || todaySum >= 5) {
-    const timing = todayRain >= 50 ? 'today' : 'tomorrow';
-    tips.push({
+  // ==================================================
+  // INSIGHT 1 — IRRIGATION / SOIL
+  // ==================================================
+  if (rain >= 50 || rainSum >= 3) {
+    insights.push({
       ic: 'rain',
       t: {
-        en: `Rain expected — hold irrigation ${timing}`,
-        te: `వర్ష సూచన — ${timing === 'today' ? 'ఈరోజు' : 'రేపు'} నీటిపారుదల ఆపండి`,
+        en: 'Rain may reduce irrigation needs',
+        te: 'వర్షం వలన నీటి అవసరం తగ్గే అవకాశం',
       },
       d: {
-        en: `${Math.max(todayRain, tomorrowRain)}% chance of rain (${(todaySum + (tomorrow.rainSum ?? 0)).toFixed(1)} mm expected). Natural rainfall will supply crop water needs; delay manual irrigation to conserve water and prevent root rot. Clear field drainage channels. (Rule-based recommendation)`,
-        te: `${Math.max(todayRain, tomorrowRain)}% వర్షం అవకాశం. వర్షపు నీరు సరిపోతుంది; అధిక నీరు నిలవకుండా కాలువలను శుభ్రం చేయండి. నీరు పెట్టడం ఆపండి. (సూచన మాత్రమే)`,
+        en: isToday
+          ? 'Rain is expected today. Check actual soil moisture before scheduling irrigation. (Rule-based recommendation)'
+          : 'Rain is expected. Check actual soil moisture before scheduling irrigation. (Rule-based recommendation)',
+        te: isToday
+          ? 'ఈరోజు వర్షం అవకాశం ఉంది. నీటిపారుదల నిర్ణయించే ముందు వాస్తవ నేల తేమను పరిశీలించండి. (సూచన మాత్రమే)'
+          : 'వర్షం అవకాశం ఉంది. నీటిపారుదల నిర్ణయించే ముందు వాస్తవ నేల తేమను పరిశీలించండి. (సూచన మాత్రమే)',
       },
     });
-  } else if ((today.hi ?? current.temperature) >= 33 || current.humidity < 40) {
-    tips.push({
+  } else if ((et0 != null && et0 >= 5.0 && rain < 35) || (temp >= 35 && rain < 25)) {
+    insights.push({
       ic: 'tap',
       t: {
-        en: 'Low rainfall — irrigation may be required',
-        te: 'తక్కువ వర్షం — నీటిపారుదల అవసరం కావచ్చు',
+        en: 'High irrigation demand',
+        te: 'అధిక నీటిపారుదల అవసరం',
       },
       d: {
-        en: `Dry weather with low rain probability (${todayRain}%) and warm afternoon highs of ${today.hi ?? current.temperature}°C. Soil moisture depletion will be faster; irrigate active plots during early morning or late evening. (Rule-based recommendation)`,
-        te: `తక్కువ వర్ష సూచన (${todayRain}%) మరియు అధిక ఉష్ణోగ్రత (${today.hi ?? current.temperature}°C). నేలలో తేమ త్వరగా తగ్గుతుంది; ఉదయం లేదా సాయంత్రం నీరు పెట్టండి. (సూచన మాత్రమే)`,
+        en: 'Low rainfall is expected with higher water loss. Check soil moisture before irrigating. (Rule-based recommendation)',
+        te: 'తక్కువ వర్షం మరియు అధిక నీటి ఆవిరి రేటు అవకాశం. నీరు పెట్టే ముందు నేల తేమను పరిశీలించండి. (సూచన మాత్రమే)',
+      },
+    });
+  } else if (soilMoist != null && soilMoist < 0.16 && rain < 35) {
+    insights.push({
+      ic: 'tap',
+      t: {
+        en: 'Low soil moisture — check plots',
+        te: 'తక్కువ నేల తేమ — పొలాన్ని పరిశీలించండి',
+      },
+      d: {
+        en: `Topsoil moisture is low (${soilMoist} m³/m³). Check root-zone moisture before deciding on irrigation. (Rule-based recommendation)`,
+        te: `నేలలో తేమ తక్కువగా ఉంది (${soilMoist} m³/m³). నీరు పెట్టే ముందు నేలను పరీక్షించండి. (సూచన మాత్రమే)`,
       },
     });
   } else {
-    tips.push({
+    insights.push({
       ic: 'tap',
       t: {
-        en: 'Moderate conditions — check soil moisture',
-        te: 'మోస్తరు వాతావరణం — నేల తేమను పరిశీలించండి',
+        en: 'Moderate irrigation conditions',
+        te: 'మోస్తరు నీటిపారుదల పరిస్థితులు',
       },
       d: {
-        en: `Mild weather with ${todayRain}% rain chance. Push a finger 5 cm into the topsoil to verify moisture levels before scheduling irrigation. (Rule-based recommendation)`,
-        te: `తేలికపాటి వాతావరణం (${todayRain}% వర్షం అవకాశం). నీరు పెట్టే ముందు నేలలో 5 సెం.మీ. తేమను పరిశీలించండి. (సూచన మాత్రమే)`,
+        en: 'Some rainfall is possible. Check soil moisture before deciding on irrigation. (Rule-based recommendation)',
+        te: 'కొంత వర్షం అవకాశం ఉంది. నీరు పెట్టే ముందు నేల తేమను పరిశీలించండి. (సూచన మాత్రమే)',
       },
     });
   }
 
-  // 2. Pest & Disease Advisory based on relative humidity
-  if (current.humidity >= 70) {
-    tips.push({
-      ic: 'bug',
+  // ==================================================
+  // INSIGHT 2 — CROP INSPECTION
+  // ==================================================
+  if (rain >= 55 || rainSum >= 3) {
+    insights.push({
+      ic: 'rain',
       t: {
-        en: 'Humid conditions raise pest & fungal risk',
-        te: 'అధిక తేమ పురుగు, తెగుళ్ల ప్రమాదాన్ని పెంచుతుంది',
+        en: 'Wet conditions expected',
+        te: 'తేమతో కూడిన వాతావరణం',
       },
       d: {
-        en: `At ${current.humidity}% relative humidity, warm and moist air favors fungal spores and stem borer egg-laying. Inspect leaf whorls and undersides for ragged holes or lesions.`,
-        te: `${current.humidity}% తేమతో, ఈ వాతావరణం శిలీంధ్రాలు మరియు కత్తెర పురుగుకు అనుకూలం. ఆకుల అడుగుభాగం, సుడులలో రంధ్రాలు ఉన్నాయేమో చూడండి.`,
+        en: 'Rain is likely. Consider checking fields after rainfall for standing water or crop stress.',
+        te: 'వర్షం అవకాశం ఉంది. వర్షం తగ్గాక పొలంలో నీరు నిల్వ లేదా పంట ఒత్తిడిని పరిశీలించండి.',
+      },
+    });
+  } else if (temp >= 34) {
+    insights.push({
+      ic: 'sun',
+      t: {
+        en: 'Hot conditions — inspect carefully',
+        te: 'అధిక వేడి — జాగ్రత్తగా పరిశీలించండి',
+      },
+      d: {
+        en: 'High temperatures are expected. Schedule field inspection during cooler morning or evening hours.',
+        te: 'అధిక ఉష్ణోగ్రతలు అంచనా. ఉదయం లేదా సాయంత్రం వేళల్లో పొలం పరిశీలన చేయండి.',
+      },
+    });
+  } else if (humidity != null && humidity >= 75) {
+    insights.push({
+      ic: 'bug',
+      t: {
+        en: 'Humid conditions raise pest & disease risk',
+        te: 'అధిక తేమ తెగుళ్ల ప్రమాదాన్ని పెంచుతుంది',
+      },
+      d: {
+        en: 'High relative humidity favors fungal growth and foliar pests. Scout crop whorls and leaf undersides.',
+        te: 'అధిక తేమ వల్ల శిలీంధ్రాలు మరియు పురుగులు వ్యాపించే అవకాశం ఉంది. ఆకుల అడుగుభాగం పరిశీలించండి.',
+      },
+    });
+  } else if (wind >= 20) {
+    insights.push({
+      ic: 'wind',
+      t: {
+        en: 'Windy conditions',
+        te: 'వేగవంతమైన గాలి',
+      },
+      d: {
+        en: 'Stronger winds are expected. Avoid unnecessary field activities during peak wind periods.',
+        te: 'గాలి వేగం ఎక్కువ. గాలి తగ్గే వరకు అవసరం లేని పనులను నివారించండి.',
       },
     });
   } else {
-    tips.push({
+    insights.push({
       ic: 'bug',
       t: {
-        en: 'Favourable weather for crop inspection',
+        en: 'Good conditions for crop inspection',
         te: 'పంట పరిశీలనకు అనుకూలమైన వాతావరణం',
       },
       d: {
-        en: `Moderate humidity at ${current.humidity}% and temperature at ${current.temperature}°C. Continue routine scouting across all farm plots.`,
-        te: `తేమ ${current.humidity}%, ఉష్ణోగ్రత ${current.temperature}°C. అన్ని ప్లాట్లలో సాధారణ పంట పర్యవేక్షణ కొనసాగించండి.`,
+        en: 'Moderate temperature and humidity with low rainfall. Routine crop scouting can be carried out.',
+        te: 'మోస్తరు ఉష్ణోగ్రత మరియు తేమతో సాధారణ పంట పరిశీలన కొనసాగించవచ్చు.',
       },
     });
   }
 
-  // 3. Spraying & Field Operations Window based on wind and precipitation
-  const wetDayIndex = days.findIndex((d) => d.rain >= 60);
-  const dryDayIndex = days.findIndex((d, i) => i > wetDayIndex && d.rain <= 25);
-  const sprayDayName = dryDayIndex >= 0 && dayNameFn ? dayNameFn(dryDayIndex, 'long') : (dayNameFn ? dayNameFn(0, 'long') : 'Today');
-
-  if (current.windSpeed > 15) {
-    tips.push({
-      ic: 'sun',
-      t: {
-        en: 'Breezy winds — avoid foliar spraying now',
-        te: 'వేగవంతమైన గాలి — మందుల స్ప్రే ఆపండి',
-      },
-      d: {
-        en: `Wind speed is currently ${current.windSpeed} km/h. High winds cause spray drift and uneven chemical deposition. Delay spraying until wind calms below 12 km/h.`,
-        te: `గాలి వేగం ${current.windSpeed} km/h. మందు పక్కకు కొట్టుకుపోతుంది. గాలి తగ్గిన తర్వాత మాత్రమే స్ప్రే చేయండి.`,
-      },
-    });
-  } else if (todayRain >= 60) {
-    tips.push({
+  // ==================================================
+  // INSIGHT 3 — SPRAYING / FARM ACTIVITY
+  // ==================================================
+  if (rain >= 50 || rainSum >= 2) {
+    insights.push({
       ic: 'rain',
       t: {
-        en: 'Hold chemical sprays — rain expected',
-        te: 'స్ప్రేలు ఆపండి — వర్షం అవకాశం',
+        en: 'Rain may affect spraying',
+        te: 'వర్షం స్ప్రేయింగ్‌పై ప్రభావం చూపవచ్చు',
       },
       d: {
-        en: `${todayRain}% rain chance today. Applied fertilizers or pesticides will wash off into drainage. Wait for clear skies.`,
-        te: `ఈరోజు ${todayRain}% వర్షం అవకాశం. ఇప్పుడు వేసిన ఎరువులు, మందులు కొట్టుకుపోతాయి. వర్షం తగ్గాక వేయండి.`,
+        en: 'Rain is expected. Consider avoiding spraying immediately before rainfall.',
+        te: 'వర్షం అవకాశం ఉంది. మందులు కొట్టుకుపోయే ప్రమాదం ఉన్నందున స్ప్రేయింగ్ నివారించండి.',
+      },
+    });
+  } else if (wind >= 14) {
+    insights.push({
+      ic: 'wind',
+      t: {
+        en: 'Wind may affect spraying',
+        te: 'గాలి స్ప్రేయింగ్‌పై ప్రభావం చూపవచ్చు',
+      },
+      d: {
+        en: 'Stronger winds are expected. Consider postponing spraying to a calmer period.',
+        te: 'గాలి వేగం ఎక్కువ. మందు కొట్టుకుపోయే ప్రమాదం ఉన్నందున గాలి తగ్గాక స్ప్రే చేయండి.',
+      },
+    });
+  } else if (temp >= 35) {
+    insights.push({
+      ic: 'sun',
+      t: {
+        en: 'High temperature conditions',
+        te: 'అధిక ఉష్ణోగ్రత పరిస్థితులు',
+      },
+      d: {
+        en: 'High temperatures are expected. Consider cooler morning or evening hours for field activities.',
+        te: 'అధిక ఉష్ణోగ్రతలు అంచనా. ఉదయం లేదా సాయంత్రం చల్లని వేళల్లో పనులు చేపట్టండి.',
       },
     });
   } else {
-    tips.push({
+    insights.push({
       ic: 'sun',
       t: {
-        en: `${sprayDayName}: favourable spraying window`,
-        te: `${sprayDayName}: స్ప్రేకు అనుకూల సమయం`,
+        en: 'Favourable spraying conditions',
+        te: 'స్ప్రేయింగ్‌కు అనుకూలమైన వాతావరణం',
       },
       d: {
-        en: `Dry conditions with calm wind (${current.windSpeed} km/h). Spray early morning or late afternoon when temperatures are mild for optimal leaf absorption.`,
-        te: `పొడిగా, ప్రశాంతమైన గాలి (${current.windSpeed} km/h). ఉదయం లేదా సాయంత్రం వేళల్లో స్ప్రే చేయడం మంచిది.`,
+        en: 'Low rainfall probability and gentle winds may provide a suitable spraying window. Follow crop and product guidance.',
+        te: 'తక్కువ వర్ష అవకాశం మరియు తేలికపాటి గాలి స్ప్రేకు అనుకూలమైన సమయం కావచ్చు. లేబుల్ సూచనలు పాటించండి.',
       },
     });
   }
 
-  return tips;
+  return insights;
+}
+
+/**
+ * Backward compatibility wrapper for generateFarmerTips
+ */
+export function generateFarmerTips(current, forecast, dayNameFn) {
+  return generateDayInsights({
+    temp: current?.temperature,
+    rain: current?.precipitationProbability,
+    rainSum: current?.precipitation,
+    wind: current?.windSpeed,
+    humidity: current?.humidity,
+    soilMoist: current?.soilMoisture,
+    et0: current?.et0,
+  }, true);
 }
 
 /**
