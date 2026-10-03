@@ -41,6 +41,11 @@ export function AppProvider({ children }) {
   const { activePlot, activePlotId: farmKey, setActivePlotId } = useFarm();
   const activeFarm = useMemo(() => toFarmView(activePlot), [activePlot]);
 
+  // farmer profile (per account); its name, when set, is the name shown across the app
+  const [profile, setProfile] = useState(() => load('profile', null));
+  const saveProfile = useCallback((p) => { store('profile', p); setProfile(p); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const displayName = profile?.name || user?.name || '';
+
   const [tasksDone, setTasksDoneState] = useState(() => load('tasks_done', {}));
 
   const [compareSel, setCompareSelState] = useState(() => load('preferences_compare', ['maize', 'cotton']));
@@ -340,6 +345,9 @@ export function AppProvider({ children }) {
       value={{
         signedIn,
         user,
+        profile,
+        saveProfile,
+        displayName,
         setSignedIn,
         farmKey,
         setFarmKey,

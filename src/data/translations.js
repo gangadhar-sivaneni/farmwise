@@ -10,7 +10,7 @@ export const TE = {
   'foot.p':'తెలివిగా పండించండి. మెరుగ్గా సాగు చేయండి.','foot.credit':'వీడియో: Pexels · ఫోటోలు: Unsplash · © 2026 FarmWise',
   'lg.h1':'స్వాగతం, రైతు గారు.','lg.sub':'మీ మొబైల్ నంబర్‌తో సైన్ ఇన్ చేయండి. ఒక-సారి కోడ్ పంపుతాం.','lg.phone':'మొబైల్ నంబర్','lg.otp':'6 అంకెల కోడ్','lg.otpHint':'కొనసాగడానికి ఏవైనా 6 అంకెలు నమోదు చేయండి.',
   'lg.send':'కోడ్ పంపండి','lg.verify':'ధృవీకరించి లోపలికి వెళ్లండి','lg.or':'లేదా','lg.demo':'అతిథిగా కొనసాగండి','lg.note':'నమూనా మాత్రమే — ఖాతా సృష్టించబడదు, సమాచారం ఈ బ్రౌజర్ దాటదు.','lg.quote':'ప్రతి ఎకరం, శ్రద్ధగా ప్రణాళిక — మీ భాషలోనే.',
-  'dash.farm':'ప్రస్తుత పొలం','p.overview':'సారాంశం','p.crops':'పంటలు','p.planner':'లాభ ప్రణాళిక','p.weather':'వాతావరణం','p.soil':'నేల ఆరోగ్యం','p.scan':'పంట స్కాన్','p.market':'మార్కెట్ & దుకాణాలు','p.tasks':'ఈరోజు పనులు',
+  'dash.farm':'ప్రస్తుత పొలం','p.overview':'సారాంశం','p.crops':'పంటలు','p.planner':'లాభ ప్రణాళిక','p.weather':'వాతావరణం','p.soil':'నేల ఆరోగ్యం','p.scan':'పంట స్కాన్','p.market':'మార్కెట్ & దుకాణాలు','p.tasks':'ఈరోజు పనులు','p.profile':'ప్రొఫైల్ సెట్టింగ్స్',
   'logout':'లాగ్ అవుట్','name':'గంగాధర్',
   'kpi.crops':'సాగులో ఉన్న పంటలు','kpi.area':'పొలం విస్తీర్ణం','acres':'ఎకరాలు','kpi.areaS':'అన్ని ప్లాట్లు కలిపి','kpi.profit':'అంచనా లాభం','kpi.profitS':'ఈ సీజన్ · అంచనా','kpi.wx':'వాతావరణం',
   'ov.map':'పొలం పటం','ov.explore':'పంటలు చూడండి','dash.scanNow':'ఆకును స్కాన్ చేయండి','dash.tasks':'ఈరోజు పొలం పనులు','dash.progress':'పంట పెరుగుదల చక్రం','dash.forecast':'5 రోజుల సూచన',
@@ -76,7 +76,7 @@ export const W = {
 
 export const PAGE_T = {
   overview:'p.overview', crops:'p.crops', planner:'p.planner', weather:'p.weather',
-  soil:'p.soil', scan:'p.scan', market:'p.market', tasks:'p.tasks'
+  soil:'p.soil', scan:'p.scan', market:'p.market', tasks:'p.tasks', profile:'p.profile'
 };
 
 export const LBL = {

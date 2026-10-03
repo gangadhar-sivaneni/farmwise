@@ -1,0 +1,9 @@
+{
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/analyze.js": { "maxDuration": 60 },
+    "api/markets/prices.js": { "maxDuration": 60 }
+  }
+}

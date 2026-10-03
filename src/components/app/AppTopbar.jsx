@@ -8,8 +8,8 @@ import { PAGE_T } from '../../data/translations';
 
 export default function AppTopbar({ currentPage }) {
   const { t, L } = useLanguage();
-  const { weatherData, locationInfo } = useApp();
-  const { user, logout } = useAuth();
+  const { weatherData, locationInfo, displayName } = useApp();
+  const { logout } = useAuth();
   const [menu, setMenu] = useState(false);
   const menuRef = useRef(null);
   useEffect(() => {
@@ -31,6 +31,7 @@ export default function AppTopbar({ currentPage }) {
     scan: 'Crop Scan',
     market: 'Market & Shops',
     tasks: "Today’s Tasks",
+    profile: 'Profile Settings',
   };
 
   const isLiveGps = !!(locationInfo?.isLiveGPS && weatherData);
@@ -55,12 +56,15 @@ export default function AppTopbar({ currentPage }) {
         <LanguageSwitcher />
         <div className="pmenu" ref={menuRef}>
           <button type="button" className="avatar" aria-haspopup="menu" aria-expanded={menu} aria-label={L({ en: 'Profile menu', te: 'ప్రొఫైల్ మెను' })} onClick={() => setMenu((m) => !m)}>
-            {user?.name?.[0] || '?'}
+            {(displayName || '?')[0].toUpperCase()}
           </button>
           {menu && (
             <div className="fsel-pop pmenu-pop" role="menu">
               <small className="fsel-h">{L({ en: 'SIGNED IN AS', te: 'లాగిన్ అయినవారు' })}</small>
-              <b className="pmenu-name">{user?.name}</b>
+              <b className="pmenu-name">{displayName}</b>
+              <a role="menuitem" className="fsel-add pmenu-item" href="#/app/profile" onClick={() => setMenu(false)}>
+                <Icon name="user" /><span>{L({ en: 'Profile settings', te: 'ప్రొఫైల్ సెట్టింగ్స్' })}</span>
+              </a>
               <button type="button" role="menuitem" className="fsel-add" onClick={logout}>
                 <Icon name="logout" /><span>{t('logout', 'Log out')}</span>
               </button>

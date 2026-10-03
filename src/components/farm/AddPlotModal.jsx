@@ -1,5 +1,6 @@
 import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../common/Icon';
+import MapBoundary from '../common/MapBoundary';
 import { useLanguage } from '../../context/LanguageContext';
 import { useFarm } from '../../context/FarmContext';
 import { CROPS } from '../../data/cropsData';
@@ -212,9 +213,11 @@ export default function AddPlotModal() {
           )}
 
           {(method === 'draw' || (method === 'upload' && points)) && (
+            <MapBoundary message={L({ en: 'The map could not load. Check your internet.', te: 'మ్యాప్ లోడ్ కాలేదు. ఇంటర్నెట్ చూడండి.' })} retry={L({ en: 'Retry', te: 'మళ్లీ ప్రయత్నించండి' })}>
             <Suspense fallback={<div className="pmap-box pmap-wait muted">{L({ en: 'Loading map…', te: 'మ్యాప్ లోడ్ అవుతోంది…' })}</div>}>
               <PlotMap points={points} center={mapCenter} onChange={(p) => { setPoints(p); if (method === 'draw') setFromFile(false); setErrors((s) => ({ ...s, boundary: null })); }} />
             </Suspense>
+            </MapBoundary>
           )}
 
           {useBoundary && !boundaryErr && (

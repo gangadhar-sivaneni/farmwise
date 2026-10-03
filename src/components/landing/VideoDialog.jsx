@@ -47,16 +47,8 @@ export default function VideoDialog() {
       onClick={handleBackdropClick}
       onClose={handleClose}
     >
-      <video
-        ref={videoRef}
-        controls
-        playsInline
-        poster="https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1400&q=70"
-      >
-        <source
-          src="https://videos.pexels.com/video-files/5326954/5326954-hd_1920_1080_30fps.mp4"
-          type="video/mp4"
-        />
+      <video ref={videoRef} controls playsInline preload="metadata">
+        <source src="/videos/farmwise-demo.mp4" type="video/mp4" />
       </video>
       <button
         type="button"

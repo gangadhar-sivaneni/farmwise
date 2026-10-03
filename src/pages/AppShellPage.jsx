@@ -11,6 +11,7 @@ import SoilPage from './app/SoilPage';
 import ScanPage from './app/ScanPage';
 import MarketPage from './app/MarketPage';
 import TasksPage from './app/TasksPage';
+import ProfilePage from './app/ProfilePage';
 
 export default function AppShellPage({ subpage = 'overview' }) {
   useEffect(() => {
@@ -31,6 +32,7 @@ export default function AppShellPage({ subpage = 'overview' }) {
           {subpage === 'scan' && <ScanPage />}
           {subpage === 'market' && <MarketPage />}
           {subpage === 'tasks' && <TasksPage />}
+          {subpage === 'profile' && <ProfilePage />}
         </div>
       </div>
       <CompareTray />

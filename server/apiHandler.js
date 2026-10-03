@@ -50,16 +50,7 @@ export function createApiMiddleware(getApiKey) {
 
       let bodyText = '';
       let tooLarge = false;
-      req.on('data', (chunk) => {
-        if (tooLarge) return; // keep reading (discarding) so the browser receives the 413 instead of a reset connection
-        bodyText += chunk;
-        if (bodyText.length > 15 * 1024 * 1024) {
-          tooLarge = true;
-          bodyText = '';
-        }
-      });
-
-      req.on('end', async () => {
+      const onEnd = async () => {
         if (tooLarge) {
           res.statusCode = 413;
           res.setHeader('Content-Type', 'application/json');
@@ -108,7 +99,23 @@ export function createApiMiddleware(getApiKey) {
             error: err.message || 'Error occurred while contacting Google Gemini API for real-time analysis.'
           }));
         }
+      };
+
+      if (req.body !== undefined) {
+        // Vercel (and similar hosts) have already read and parsed the body
+        bodyText = typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {});
+        await onEnd();
+        return;
+      }
+      req.on('data', (chunk) => {
+        if (tooLarge) return; // keep reading (discarding) so the browser receives the 413 instead of a reset connection
+        bodyText += chunk;
+        if (bodyText.length > 15 * 1024 * 1024) {
+          tooLarge = true;
+          bodyText = '';
+        }
       });
+      req.on('end', onEnd);
       return;
     }
 

@@ -10,7 +10,7 @@ import { useMandiPrices, livePriceOf } from '../../hooks/useMandiPrices';
 import { generateFarmerTips, generateDayInsights } from '../../services/weatherService';
 import { SOURCE_LABEL } from '../../services/farmService';
 import { useFarm } from '../../context/FarmContext';
-import { useAuth } from '../../context/AuthContext';
+import MapBoundary from '../../components/common/MapBoundary';
 
 // Leaflet loads with the overview card, not the whole app
 const FieldMap = lazy(() => import('../../components/farm/FieldMap'));
@@ -29,7 +29,6 @@ const seasonLabel = (d = new Date()) => {
 
 export default function OverviewPage() {
   const { openPlotEditor } = useFarm();
-  const { user } = useAuth();
   const { t, L, loc, W, lang } = useLanguage();
   const {
     activeFarm,
@@ -40,7 +39,8 @@ export default function OverviewPage() {
     scanAlerts = [],
     dismissScanAlert,
     weatherData,
-    locationInfo
+    locationInfo,
+    displayName,
   } = useApp();
 
   const { data: mandi } = useMandiPrices();
@@ -148,7 +148,7 @@ export default function OverviewPage() {
       <div className="page-h">
         <div>
           <h1>
-            <span>{greetWord}</span>, <span>{user?.name}</span>.
+            <span>{greetWord}</span>, <span>{displayName}</span>.
           </h1>
           <p id="farmSummary">
             {`${L(activeFarm.name)} · ${L(locationInfo?.isLiveGPS && locationInfo?.name ? locationInfo.name : activeFarm.loc)} · ${L(seasonLabel())}`}
@@ -216,12 +216,14 @@ export default function OverviewPage() {
             <h3>{t('ov.map', 'Field map')}</h3>
           </div>
           <div className="map">
+            <MapBoundary message={L({ en: 'The map could not load. Check your internet.', te: 'మ్యాప్ లోడ్ కాలేదు. ఇంటర్నెట్ చూడండి.' })} retry={L({ en: 'Retry', te: 'మళ్లీ ప్రయత్నించండి' })}>
             <Suspense fallback={null}>
               <FieldMap
                 plot={activeFarm.record}
                 label={`${L(activeFarm.name)} · ${activeFarm.plots.map((p) => L(byId(p.crop)?.name)).join(', ')} · ${+totals.acres.toFixed(2)} ${L(W.acresW)}`}
               />
             </Suspense>
+            </MapBoundary>
             <div className="over">
               <span className="w" id="mapPlotsN">
                 {`${activeFarm.plots.length} ${L(activeFarm.plots.length === 1 ? { en: 'plot', te: 'ప్లాట్' } : W.plots)} · ${+totals.acres.toFixed(2)} ${L(W.acresW)}`}
