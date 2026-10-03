@@ -17,7 +17,7 @@ export default function LandingEnd() {
           <p>
             {t(
               'end.p',
-              'Open the demo farm and try the crop planner, weather advice and leaf scan.'
+              'Open your farm and try the crop planner, weather advice and leaf scan.'
             )}
           </p>
           <a href="#/login" className="btn btn-light">
@@ -31,10 +31,7 @@ export default function LandingEnd() {
 
       <div className="wrap lp-foot">
         <span>
-          {t(
-            'foot.p',
-            'A hackathon prototype. All data shown is illustrative and not live.'
-          )}
+          {t('foot.p', 'Grow Smarter. Farm Better.')}
         </span>
         <span className="mono">
           {t('foot.credit', 'Video: Pexels · Photos: Unsplash · © 2026 FarmWise')}

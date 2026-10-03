@@ -28,7 +28,7 @@ export default function HowItWorksSection() {
         />
         <div className="float">
           <div className="hd">
-            <span>{t('bn.place', 'Demo Farm · Warangal')}</span>
+            <span>{t('bn.place', 'My Farm · Warangal')}</span>
             <Icon name="pin" className="ico sm" />
           </div>
           <div className="tabs">

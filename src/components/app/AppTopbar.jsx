@@ -36,12 +36,8 @@ export default function AppTopbar({ currentPage }) {
           <i />
           <span>{L({ en: 'Live Weather', te: 'ప్రత్యక్ష వాతావరణం' })}</span>
         </span>
-      ) : (
-        <span className="pill demo">
-          <i />
-          <span>{t('demo', 'Demo Mode')}</span>
-        </span>
-      )}
+      ) : null}
+
       <div className="r">
         <LanguageSwitcher />
         <span className="avatar" aria-label="Gangadhar">

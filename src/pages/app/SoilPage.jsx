@@ -24,12 +24,8 @@ export default function SoilPage() {
       <div className="page-h">
         <div>
           <h1>{t('soil.h', 'Good harvests start underground')}</h1>
-          <p>{t('soil.p', 'From your sample Soil Health Card.')}</p>
+          <p>{t('soil.p', 'From your Soil Health Card.')}</p>
         </div>
-        <span className="pill demo">
-          <i />
-          <span>{t('soil.sample', 'Sample soil card')}</span>
-        </span>
       </div>
 
       <div className="grid g-ov">
