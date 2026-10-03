@@ -5,5 +5,16 @@
   "functions": {
     "api/analyze.js": { "maxDuration": 60 },
     "api/markets/prices.js": { "maxDuration": 60 }
-  }
+  },
+  "headers": [
+    {
+      "source": "/api/markets/prices",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "s-maxage=18000, stale-while-revalidate=86400"
+        }
+      ]
+    }
+  ]
 }
