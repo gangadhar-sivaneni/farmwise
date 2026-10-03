@@ -21,7 +21,7 @@ const COST_COL = {
 
 export default function PlannerPage() {
   const { t, L, loc, W, lang } = useLanguage();
-  const { plannerCrop } = useApp();
+  const { plannerCrop, activeFarm } = useApp();
   const { data: mandi } = useMandiPrices();
   const [priceEdited, setPriceEdited] = useState(false);
 
@@ -46,6 +46,8 @@ export default function PlannerPage() {
     }
   });
 
+  const areaRef = React.useRef(activeFarm?.areaAcres);
+  areaRef.current = activeFarm?.areaAcres;
   const mandiRef = React.useRef(mandi);
   mandiRef.current = mandi;
   const live = mandi?.crops?.[selectedCrop];
@@ -64,7 +66,7 @@ export default function PlannerPage() {
     setPriceVal(mandiRef.current?.crops?.[cropId]?.price ?? c.price);
     setPriceEdited(false);
     if (resetArea) {
-      setArea(2.5);
+      setArea(Math.round((areaRef.current || 2.5) * 100) / 100);
     }
   }, []);
 
@@ -73,6 +75,12 @@ export default function PlannerPage() {
       setCropDefaults(plannerCrop, false);
     }
   }, [plannerCrop, setCropDefaults]);
+
+  // Area follows the selected plot (the farmer can still type a different area to explore)
+  const plotAcres = activeFarm?.areaAcres;
+  useEffect(() => {
+    if (plotAcres > 0) setArea(Math.round(plotAcres * 100) / 100);
+  }, [activeFarm?.id, plotAcres]);
 
   const handleCropChange = (e) => {
     setCropDefaults(e.target.value, false);
@@ -190,7 +198,7 @@ export default function PlannerPage() {
                   type="range"
                   id="eAreaR"
                   min="0.5"
-                  max="25"
+                  max={Math.max(25, Math.ceil(num(area)))}
                   step="0.5"
                   value={area}
                   aria-label="Farm area slider"

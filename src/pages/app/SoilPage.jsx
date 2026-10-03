@@ -1,17 +1,20 @@
-import React, { useState } from 'react';
+import React from 'react';
 import Icon from '../../components/common/Icon';
 import SoilDashboard from '../../components/soil/SoilDashboard';
 import { useLanguage } from '../../context/LanguageContext';
+import { useFarm } from '../../context/FarmContext';
 
 export default function SoilPage() {
   const { t, L, W } = useLanguage();
-  const [uploadedFile, setUploadedFile] = useState(null);
+  // the soil report belongs to the selected plot (file name/size kept with the plot record)
+  const { activePlot, savePlot } = useFarm();
+  const uploadedFile = activePlot?.soilReport;
 
   const handleFileChange = (e) => {
     const f = e.target.files[0];
-    if (f) {
+    if (f && activePlot) {
       const sizeKB = Math.max(1, Math.round(f.size / 1024));
-      setUploadedFile({ name: f.name, sizeKB });
+      savePlot({ ...activePlot, soilReport: { name: f.name, sizeKB, type: f.type, uploadedAt: new Date().toISOString() } });
     }
   };
 

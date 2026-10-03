@@ -624,6 +624,9 @@ function createDayRecord(savedTasks) {
   return { suggestions, added, changes, deleted: [], conditionKey: null };
 }
 
+// Tasks are stored per plot: demo farm 'a' keeps the original date-only keys (existing history), other plots use 'plotId|date'.
+const recordKey = (dateStr, farm) => (farm?.id && farm.id !== 'a' ? `${farm.id}|${dateStr}` : dateStr);
+
 function readDayRecord(allTasks, dateStr) {
   const saved = allTasks[dateStr];
   if (Array.isArray(saved)) {
@@ -658,7 +661,8 @@ function tasksFromRecord(record) {
  */
 export function getTasksForDate(dateStr, farm, weather) {
   const allTasks = loadAllDailyTasks() || {};
-  let record = readDayRecord(allTasks, dateStr);
+  const key = recordKey(dateStr, farm);
+  let record = readDayRecord(allTasks, key);
 
   if (!record) {
     record = {
@@ -714,14 +718,15 @@ export function getTasksForDate(dateStr, farm, weather) {
     return true;
   });
 
-  allTasks[dateStr] = record;
+  allTasks[key] = record;
   saveAllDailyTasks(allTasks);
   return tasksFromRecord(record);
 }
 
-export function saveTasksForDate(dateStr, taskList) {
+export function saveTasksForDate(dateStr, taskList, farm) {
   const allTasks = loadAllDailyTasks() || {};
-  const record = readDayRecord(allTasks, dateStr) || {
+  const key = recordKey(dateStr, farm);
+  const record = readDayRecord(allTasks, key) || {
     suggestions: [], added: [], changes: {}, deleted: [], conditionKey: null,
   };
   const taskById = new Map(taskList.map((task) => [task.id, task]));
@@ -753,7 +758,7 @@ export function saveTasksForDate(dateStr, taskList) {
     };
   });
   record.added = record.added.filter((task) => !suggestionIds.has(task.id));
-  allTasks[dateStr] = record;
+  allTasks[key] = record;
   saveAllDailyTasks(allTasks);
   return taskList;
 }
@@ -763,7 +768,7 @@ export function toggleTaskComplete(dateStr, taskId, farm, weather) {
   const updated = tasks.map((task) => task.id === taskId
     ? { ...task, completed: !task.completed }
     : task);
-  saveTasksForDate(dateStr, updated);
+  saveTasksForDate(dateStr, updated, farm);
   return updated;
 }
 
@@ -785,7 +790,7 @@ export function addTaskForDate(dateStr, newTaskData, farm, weather) {
     completed: false,
   };
   const updated = [task, ...tasks];
-  saveTasksForDate(dateStr, updated);
+  saveTasksForDate(dateStr, updated, farm);
   return updated;
 }
 
@@ -802,12 +807,12 @@ export function editTaskForDate(dateStr, taskId, fields, farm, weather) {
       isEdited: true,
     };
   });
-  saveTasksForDate(dateStr, updated);
+  saveTasksForDate(dateStr, updated, farm);
   return updated;
 }
 
 export function deleteTaskForDate(dateStr, taskId, farm, weather) {
   const updated = getTasksForDate(dateStr, farm, weather).filter((task) => task.id !== taskId);
-  saveTasksForDate(dateStr, updated);
+  saveTasksForDate(dateStr, updated, farm);
   return updated;
 }

@@ -20,6 +20,7 @@ export default function CropsPage() {
     toggleCompare,
     setComparePair,
     setActiveCropModal,
+    activeFarm,
   } = useApp();
 
   const { data: mandi } = useMandiPrices();
@@ -119,7 +120,7 @@ export default function CropsPage() {
       <div className="page-h">
         <div>
           <h1>{t('crops.h', 'Find the crop that fits your field')}</h1>
-          <p>{t('crops.p', 'Per-acre, illustrative numbers.')}</p>
+          <p>{t('crops.p', 'Per-acre, illustrative numbers.')} · {L(activeFarm.name)}: {+(+activeFarm.areaAcres).toFixed(2)} {L(W.acresW)}</p>
         </div>
       </div>
 

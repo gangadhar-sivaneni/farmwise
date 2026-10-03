@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, lazy, Suspense } from 'react';
 import Icon from '../../components/common/Icon';
 import { useLanguage } from '../../context/LanguageContext';
 import { useApp } from '../../context/AppContext';
@@ -7,7 +7,12 @@ import { FORECAST } from '../../data/weatherData';
 import { TASKS, getTodayDateStr } from '../../data/tasksData';
 import { STAGES } from '../../data/translations';
 import { useMandiPrices, livePriceOf } from '../../hooks/useMandiPrices';
-import { generateFarmerTips } from '../../services/weatherService';
+import { generateFarmerTips, generateDayInsights } from '../../services/weatherService';
+import { SOURCE_LABEL } from '../../services/farmService';
+import { useFarm } from '../../context/FarmContext';
+
+// Leaflet loads with the overview card, not the whole app
+const FieldMap = lazy(() => import('../../components/farm/FieldMap'));
 
 // Growth stage from how far through its season the crop is (0 Sowing … 4 Harvest)
 const stageOf = (pct) => (pct < 10 ? 0 : pct < 45 ? 1 : pct < 75 ? 2 : pct < 100 ? 3 : 4);
@@ -22,6 +27,7 @@ const seasonLabel = (d = new Date()) => {
 };
 
 export default function OverviewPage() {
+  const { openPlotEditor } = useFarm();
   const { t, L, loc, W, lang } = useLanguage();
   const {
     activeFarm,
@@ -36,6 +42,12 @@ export default function OverviewPage() {
   } = useApp();
 
   const { data: mandi } = useMandiPrices();
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+  const [wxDay, setWxDay] = useState(0);
   const todayStr = getTodayDateStr();
   const todayTasksList = getDailyTasks ? getDailyTasks(todayStr) : TASKS;
 
@@ -82,13 +94,13 @@ export default function OverviewPage() {
 
     let animId;
     const step = (now) => {
-      const p = Math.min(1, (now - t0) / 900);
+      const p = Math.min(1, Math.max(0, (now - t0) / 900));
       const ease = 1 - Math.pow(1 - p, 3);
       setDisplayVals({
         crops: Math.round(target.crops * ease),
         area: Number((target.area * ease).toFixed(1)),
         profit: Math.round(target.profit * ease),
-        temp: Math.round(target.temp * ease),
+        temp: Math.round((target.temp ?? 0) * ease),
       });
       if (p < 1) {
         animId = requestAnimationFrame(step);
@@ -97,14 +109,6 @@ export default function OverviewPage() {
     animId = requestAnimationFrame(step);
     return () => cancelAnimationFrame(animId);
   }, [activeFarm, totals, weatherData]);
-
-  const centroid = (poly) => {
-    const pts = poly.split(' ').map((p) => p.split(',').map(Number));
-    return pts.reduce(
-      (a, p) => [a[0] + p[0] / pts.length, a[1] + p[1] / pts.length],
-      [0, 0]
-    );
-  };
 
   const dayName = (i) => {
     if (i === 0) return L(W.today);
@@ -125,6 +129,16 @@ export default function OverviewPage() {
   );
 
   const doneCount = todayTasksList.filter((t) => t.completed).length;
+  // One-line overview of the selected forecast day: conditions + the rule-based field advice for it
+  const forecastDays = weatherData?.forecast?.slice(0, 5) || FORECAST;
+  const sel = forecastDays[Math.min(wxDay, forecastDays.length - 1)];
+  const dayAdvice = sel && generateDayInsights({ temp: sel.hi, rain: sel.rain, rainSum: sel.rainSum, wind: sel.wind, humidity: sel.humidity, soilMoist: sel.soilMoisture, et0: sel.et0 }, wxDay === 0)[0];
+  const dayLine = sel && [
+    sel.condition && L(sel.condition),
+    sel.lo != null ? `${sel.hi}° / ${sel.lo}°` : `${sel.hi}°`,
+    `${sel.rain}% ${L({ en: 'chance of rain', te: 'వర్షం అవకాశం' })}`,
+    dayAdvice && L(dayAdvice.t),
+  ].filter(Boolean).join(' · ');
   const fieldAlert = (weatherData?.current && generateFarmerTips(weatherData.current)[1]) || { t: activeFarm.alert.t, d: activeFarm.alert.b };
 
   return (
@@ -135,7 +149,7 @@ export default function OverviewPage() {
             <span>{greetWord}</span>, <span>{t('name', 'Gangadhar')}</span>.
           </h1>
           <p id="farmSummary">
-            {`${L(locationInfo?.isLiveGPS && locationInfo?.name ? locationInfo.name : activeFarm.loc)} · ${L(seasonLabel())}`}
+            {`${L(activeFarm.name)} · ${L(locationInfo?.isLiveGPS && locationInfo?.name ? locationInfo.name : activeFarm.loc)} · ${L(seasonLabel())}`}
           </p>
         </div>
         <span className="muted" id="todayDate">
@@ -166,7 +180,7 @@ export default function OverviewPage() {
             <span id="kArea">{displayVals.area.toFixed(1)}</span>
             <small>{t('acres', 'acres')}</small>
           </span>
-          <span className="s">{t('kpi.areaS', 'Across all plots')}</span>
+          <span className="s">{activeFarm.areaSource === 'demo' ? t('kpi.areaS', 'Across all plots') : L(SOURCE_LABEL[activeFarm.areaSource])}</span>
         </div>
 
         <div className="card kpi hl">
@@ -186,10 +200,10 @@ export default function OverviewPage() {
             <span>{t('kpi.wx', 'Weather')}</span>
           </span>
           <span className="v">
-            <span id="kTemp">{displayVals.temp}</span>°C
+            <span id="kTemp">{(weatherData?.current?.temperature ?? activeFarm.temp) == null ? '—' : displayVals.temp}</span>°C
           </span>
           <span className="s" id="kTempS">
-            {weatherData?.current?.condition ? L(weatherData.current.condition) : L(activeFarm.cond)}
+            {weatherData?.current?.condition ? L(weatherData.current.condition) : activeFarm.cond ? L(activeFarm.cond) : '—'}
           </span>
         </div>
       </div>
@@ -200,53 +214,15 @@ export default function OverviewPage() {
             <h3>{t('ov.map', 'Field map')}</h3>
           </div>
           <div className="map">
-            <img
-              src="https://images.unsplash.com/photo-1592982537447-7440770cbfc9?auto=format&fit=crop&w=1200&q=70"
-              alt=""
-            />
-            <svg viewBox="0 0 400 250" preserveAspectRatio="none" id="farmMap" role="img">
-              {activeFarm.plots.map((p, i) => {
-                const [cx, cy] = centroid(p.poly);
-                const dark = p.fill === '#CEE2E3' || p.fill === '#F2D22E';
-                const cropObj = byId(p.crop);
-                return (
-                  <g key={i}>
-                    <polygon
-                      points={p.poly}
-                      fill={p.fill}
-                      fillOpacity=".9"
-                      stroke="#fff"
-                      strokeWidth="2"
-                      strokeDasharray="5 4"
-                    />
-                    <text
-                      x={cx}
-                      y={cy - 2}
-                      textAnchor="middle"
-                      fontFamily="Geist, Noto Sans Telugu"
-                      fontSize="13"
-                      fontWeight="600"
-                      fill={dark ? '#111310' : '#fff'}
-                    >
-                      {L(W.plot)} {p.label} · {L(cropObj?.name)}
-                    </text>
-                    <text
-                      x={cx}
-                      y={cy + 14}
-                      textAnchor="middle"
-                      fontFamily="Geist"
-                      fontSize="11"
-                      fill={dark ? '#4F534B' : 'rgba(255,255,255,.85)'}
-                    >
-                      {p.acres} {L(p.acres === 1 ? { en: 'acre', te: 'ఎకరం' } : W.acresW)}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
+            <Suspense fallback={null}>
+              <FieldMap
+                plot={activeFarm.record}
+                label={`${L(activeFarm.name)} · ${activeFarm.plots.map((p) => L(byId(p.crop)?.name)).join(', ')} · ${+totals.acres.toFixed(2)} ${L(W.acresW)}`}
+              />
+            </Suspense>
             <div className="over">
               <span className="w" id="mapPlotsN">
-                {`${activeFarm.plots.length} ${L(W.plots)} · ${totals.acres} ${L(W.acresW)}`}
+                {`${activeFarm.plots.length} ${L(activeFarm.plots.length === 1 ? { en: 'plot', te: 'ప్లాట్' } : W.plots)} · ${+totals.acres.toFixed(2)} ${L(W.acresW)}`}
               </span>
               <a
                 className="btn sm"
@@ -255,6 +231,11 @@ export default function OverviewPage() {
               >
                 {t('ov.explore', 'Explore crops')}
               </a>
+              {!activeFarm.record?.polygon && (
+                <button type="button" className="btn sm" style={{ minHeight: '30px' }} onClick={() => openPlotEditor(activeFarm.record)}>
+                  {L({ en: 'Draw boundary', te: 'సరిహద్దు గీయండి' })}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -348,8 +329,8 @@ export default function OverviewPage() {
                 {`${doneCount} / ${todayTasksList.length} ${L(W.done)}`}
               </a>
             </div>
-            <div id="miniTasks">
-              {todayTasksList.slice(0, 4).map((task) => (
+            <div id="miniTasks" style={{ maxHeight: 248, overflowY: 'auto', paddingRight: 4 }}>
+              {todayTasksList.map((task) => (
                 <label key={task.id} className="mt">
                   <input
                     type="checkbox"
@@ -409,15 +390,20 @@ export default function OverviewPage() {
             </a>
           </div>
           <div className="wx-mini" id="wxMini">
-            {(weatherData?.forecast?.slice(0, 5) || FORECAST).map((d, i) => (
-              <div key={i}>
+            {forecastDays.map((d, i) => (
+              <button key={i} type="button" aria-pressed={i === wxDay} onClick={() => setWxDay(i)}>
                 <span>{dayName(i)}</span>
                 <Icon name={d.icon} className="ico" />
                 <b>{d.hi}°</b>
                 <span>{d.rain}%</span>
-              </div>
+              </button>
             ))}
           </div>
+          {dayLine && (
+            <p className="muted" aria-live="polite" style={{ fontSize: 13.5, marginTop: 12, lineHeight: 1.5 }}>
+              <b style={{ fontWeight: 500, color: 'var(--ink)' }}>{dayName(wxDay)}:</b> {dayLine}
+            </p>
+          )}
         </div>
       </div>
     </section>

@@ -5,6 +5,7 @@ import SoilMetricCard from './SoilMetricCard';
 import { useLanguage } from '../../context/LanguageContext';
 import { byId } from '../../data/cropsData';
 import { getUserLocation, reverseGeocode } from '../../services/weatherService';
+import { useApp } from '../../context/AppContext';
 import { simulateSoil, PARAMS, DEMO_LOCATION, TEXTURE_TE, FERTILITY_TE } from '../../services/soilSimulation';
 
 const SOIL_IMG = 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=900&q=70';
@@ -46,7 +47,15 @@ export default function SoilDashboard({ aside }) {
     }
   }, []);
 
-  useEffect(() => { locate(); }, [locate]);
+  // Start from the selected plot's location; GPS / manual entry stay available below
+  const { activeFarm } = useApp();
+  useEffect(() => {
+    if (!activeFarm?.coords) { locate(); return; }
+    setLocation({ latitude: activeFarm.coords.lat, longitude: activeFarm.coords.lon, label: activeFarm.name, source: { en: 'Selected plot', te: 'ఎంచుకున్న ప్లాట్' } });
+    setSample(0);
+    setStatus('ok');
+    setError('');
+  }, [activeFarm?.id, activeFarm?.coords?.lat, activeFarm?.coords?.lon]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const useManual = (latitude, longitude) => {
     setLocation({ latitude, longitude, label: { en: 'Entered location', te: 'నమోదు చేసిన స్థానం' }, source: { en: 'Manual entry', te: 'మాన్యువల్ నమోదు' } });

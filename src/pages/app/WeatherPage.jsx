@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import Icon from '../../components/common/Icon';
 import { useLanguage } from '../../context/LanguageContext';
 import { useApp } from '../../context/AppContext';
+import { estimateIrrigation } from '../../services/irrigationService';
+import { byId } from '../../data/cropsData';
 import { FORECAST } from '../../data/weatherData';
 import {
   generateDayInsights,
@@ -147,6 +149,14 @@ export default function WeatherPage() {
     soilTemp: displaySoilTemp,
     et0: displayET0,
   };
+
+  // Illustrative irrigation need for every crop on the selected plot (ET₀ × Kc × area)
+  const irrigation = displayET0 == null ? null : activeFarm.plots.map((p) => {
+    const crop = byId(p.crop);
+    const fraction = crop ? p.day / ((crop.dur[0] + crop.dur[1]) / 2) : 0.5;
+    return { p, crop, est: estimateIrrigation({ cropId: p.crop, acres: p.acres, et0: displayET0, rainMm: selectedDayMetrics.rainSum, fraction }) };
+  }).filter((r) => r.est);
+
 
   const tips = generateDayInsights(selectedDayMetrics, isSelectedToday);
 
@@ -427,6 +437,25 @@ export default function WeatherPage() {
                 <span>{L(dayInsight.title)}</span>
               </div>
               <p>{L(dayInsight.body)}</p>
+            </div>
+          )}
+
+          {irrigation?.length > 0 && (
+            <div className="wx-insight-box">
+              <div className="h">
+                <Icon name="drop" className="ico" />
+                <span>{L({ en: `Irrigation estimate · ${L(activeFarm.name)}`, te: `నీటి అవసరం అంచనా · ${L(activeFarm.name)}` })}</span>
+                <span className="pill demo" style={{ marginLeft: 'auto' }}><i /><span>{L({ en: 'Estimate', te: 'అంచనా' })}</span></span>
+              </div>
+              {irrigation.map(({ p, crop, est }, i) => (
+                <p key={i}>
+                  {L(crop?.name)} · {p.acres} {L(W.acresW)}: {est.litres > 0
+                    ? L({ en: `about ${Math.round(est.litres / 1000).toLocaleString('en-IN')} thousand litres (${est.mm.toFixed(1)} mm)`, te: `సుమారు ${Math.round(est.litres / 1000).toLocaleString('en-IN')} వేల లీటర్లు (${est.mm.toFixed(1)} మి.మీ.)` })
+                    : L({ en: 'rain covers the need', te: 'వర్షం సరిపోతుంది' })}
+                  <small className="muted"> · ET₀ {displayET0} × Kc {est.kc.toFixed(2)}</small>
+                </p>
+              ))}
+              <small className="muted">{L({ en: 'Illustrative: ET₀ × typical crop factor (FAO-56) × plot area, minus rain. Check soil moisture before watering.', te: 'ఉదాహరణ మాత్రమే: ET₀ × సాధారణ పంట గుణకం (FAO-56) × ప్లాట్ విస్తీర్ణం, వర్షం మినహా. నీరు పెట్టే ముందు నేల తేమ చూడండి.' })}</small>
             </div>
           )}
         </div>

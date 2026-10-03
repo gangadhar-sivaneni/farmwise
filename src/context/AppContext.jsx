@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { FARMS } from '../data/farmsData';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useFarm } from './FarmContext';
+import { toFarmView } from '../services/farmService';
 import { CROPS, byId, cropCost } from '../data/cropsData';
 import {
   TASKS,
@@ -30,14 +31,9 @@ export function AppProvider({ children }) {
     }
   });
 
-  const [farmKey, setFarmKeyState] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('fw.farm'));
-      return FARMS[saved] ? saved : 'a';
-    } catch {
-      return 'a';
-    }
-  });
+  // The selected plot drives the whole dashboard; `activeFarm` keeps the shape every page already reads.
+  const { activePlot, activePlotId: farmKey, setActivePlotId } = useFarm();
+  const activeFarm = useMemo(() => toFarmView(activePlot), [activePlot]);
 
   const [tasksDone, setTasksDoneState] = useState(() => {
     try {
@@ -57,7 +53,11 @@ export function AppProvider({ children }) {
 
   const [showTray, setShowTray] = useState(false);
   const [activeCropModal, setActiveCropModal] = useState(null);
-  const [plannerCrop, setPlannerCrop] = useState('maize');
+  const [plannerCrop, setPlannerCrop] = useState(() => activePlot?.crop || 'maize');
+  // switching plot (or changing its crop) points the planner at that plot's crop
+  useEffect(() => {
+    if (activePlot?.crop) setPlannerCrop(activePlot.crop);
+  }, [farmKey, activePlot?.crop]);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
 
   const setSignedIn = useCallback((val) => {
@@ -67,14 +67,7 @@ export function AppProvider({ children }) {
     } catch {}
   }, []);
 
-  const setFarmKey = useCallback((key) => {
-    if (FARMS[key]) {
-      setFarmKeyState(key);
-      try {
-        localStorage.setItem('fw.farm', JSON.stringify(key));
-      } catch {}
-    }
-  }, []);
+  const setFarmKey = setActivePlotId;
 
   const toggleTask = useCallback((taskId) => {
     setTasksDoneState((prev) => {
@@ -102,7 +95,7 @@ export function AppProvider({ children }) {
   const [locationInfo, setLocationInfo] = useState({
     latitude: null,
     longitude: null,
-    name: FARMS[farmKey]?.loc || { en: 'Detecting location...', te: 'స్థానాన్ని గుర్తిస్తోంది...' },
+    name: activeFarm?.loc || { en: 'Detecting location...', te: 'స్థానాన్ని గుర్తిస్తోంది...' },
     isLiveGPS: false,
     isFallback: false,
   });
@@ -111,11 +104,11 @@ export function AppProvider({ children }) {
   const [dailyTasksVer, setDailyTasksVer] = useState(0);
 
   const getDailyTasks = useCallback((dateStr) => {
-    return getTasksForDate(dateStr, FARMS[farmKey], weatherData);
+    return getTasksForDate(dateStr, activeFarm, weatherData);
   }, [farmKey, weatherData, dailyTasksVer]);
 
   const toggleDailyTask = useCallback((dateStr, taskId) => {
-    const updated = toggleTaskComplete(dateStr, taskId, FARMS[farmKey], weatherData);
+    const updated = toggleTaskComplete(dateStr, taskId, activeFarm, weatherData);
     setDailyTasksVer((v) => v + 1);
     const todayStr = getTodayDateStr();
     if (dateStr === todayStr) {
@@ -138,19 +131,19 @@ export function AppProvider({ children }) {
   }, [farmKey, weatherData, showToast, W]);
 
   const addDailyTask = useCallback((dateStr, taskInput) => {
-    const updated = addTaskForDate(dateStr, taskInput, FARMS[farmKey], weatherData);
+    const updated = addTaskForDate(dateStr, taskInput, activeFarm, weatherData);
     setDailyTasksVer((v) => v + 1);
     return updated;
   }, [farmKey, weatherData]);
 
   const editDailyTask = useCallback((dateStr, taskId, fields) => {
-    const updated = editTaskForDate(dateStr, taskId, fields, FARMS[farmKey], weatherData);
+    const updated = editTaskForDate(dateStr, taskId, fields, activeFarm, weatherData);
     setDailyTasksVer((v) => v + 1);
     return updated;
   }, [farmKey, weatherData]);
 
   const deleteDailyTask = useCallback((dateStr, taskId) => {
-    const updated = deleteTaskForDate(dateStr, taskId, FARMS[farmKey], weatherData);
+    const updated = deleteTaskForDate(dateStr, taskId, activeFarm, weatherData);
     setDailyTasksVer((v) => v + 1);
     return updated;
   }, [farmKey, weatherData]);
@@ -193,6 +186,7 @@ export function AppProvider({ children }) {
       const newAlert = {
         id: 'scan-' + Date.now(),
         date: new Date().toISOString(),
+        plotId: farmRef.current?.id, // notifications belong to the plot that was selected when scanning
         ...alertItem,
       };
       const next = [newAlert, ...prev.filter(a => a.id !== newAlert.id)].slice(0, 10);
@@ -221,8 +215,8 @@ export function AppProvider({ children }) {
   const locationInfoRef = useRef(locationInfo);
   locationInfoRef.current = locationInfo;
 
-  const farmKeyRef = useRef(farmKey);
-  farmKeyRef.current = farmKey;
+  const farmRef = useRef(activeFarm);
+  farmRef.current = activeFarm;
 
   // Load weather for coordinates
   const loadWeatherForCoords = useCallback(
@@ -308,7 +302,7 @@ export function AppProvider({ children }) {
         setLocationPermissionDenied(isDenied);
 
         // Graceful fallback to currently selected farm coordinates (from existing farm selector)
-        const currentFarm = FARMS[farmKeyRef.current] || FARMS.a;
+        const currentFarm = farmRef.current;
         const fallbackCoords = currentFarm.coords || { lat: 17.9784, lon: 79.5941 };
         const fallbackLoc = currentFarm.loc;
 
@@ -344,10 +338,6 @@ export function AppProvider({ children }) {
     [loadWeatherForCoords, requestLocation]
   );
 
-  // Initial detection on mount
-  useEffect(() => {
-    requestLocation(false);
-  }, [requestLocation]);
 
   // Periodic weather refresh (every 15 minutes)
   useEffect(() => {
@@ -365,15 +355,14 @@ export function AppProvider({ children }) {
     return () => clearInterval(interval);
   }, [loadWeatherForCoords]);
 
-  // When user switches active farm in sidebar: if not on live GPS, switch weather to that farm's location
+  // Weather is plot-specific: load it for the selected plot on start and whenever the plot (or its location) changes
+  const plotLat = activeFarm?.coords?.lat, plotLon = activeFarm?.coords?.lon;
   useEffect(() => {
-    if (!locationInfoRef.current.isLiveGPS) {
-      const farm = FARMS[farmKey];
-      if (farm && farm.coords) {
-        loadWeatherForCoords(farm.coords.lat, farm.coords.lon, false, farm.loc, false);
-      }
+    if (Number.isFinite(plotLat) && Number.isFinite(plotLon)) {
+      const named = farmRef.current?.record?.location && Object.values(farmRef.current.record.location).some(Boolean);
+      loadWeatherForCoords(plotLat, plotLon, false, named ? farmRef.current.loc : null, false);
     }
-  }, [farmKey, loadWeatherForCoords]);
+  }, [farmKey, plotLat, plotLon, loadWeatherForCoords]);
 
   return (
     <AppContext.Provider
@@ -382,7 +371,7 @@ export function AppProvider({ children }) {
         setSignedIn,
         farmKey,
         setFarmKey,
-        activeFarm: FARMS[farmKey],
+        activeFarm,
         tasksDone,
         toggleTask,
         // Daily tasks engine
@@ -404,7 +393,7 @@ export function AppProvider({ children }) {
         videoModalOpen,
         setVideoModalOpen,
         // Scan alerts
-        scanAlerts,
+        scanAlerts: scanAlerts.filter((a) => !a.plotId || a.plotId === farmKey),
         saveScanAlert,
         dismissScanAlert,
         // Real-time Weather & Location

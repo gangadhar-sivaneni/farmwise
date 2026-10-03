@@ -3,12 +3,13 @@ import BrandMark from '../common/BrandMark';
 import Icon from '../common/Icon';
 import { useLanguage } from '../../context/LanguageContext';
 import { useApp } from '../../context/AppContext';
-import { FARMS } from '../../data/farmsData';
+import FarmSelector from '../farm/FarmSelector';
+import AddPlotModal from '../farm/AddPlotModal';
 import { TASKS, getTodayDateStr } from '../../data/tasksData';
 
 export default function AppSidebar({ currentPage }) {
-  const { t, L, showToast, W } = useLanguage();
-  const { farmKey, setFarmKey, tasksDone, setSignedIn, getDailyTasks } = useApp();
+  const { t, showToast, W } = useLanguage();
+  const { tasksDone, setSignedIn, getDailyTasks } = useApp();
 
   const todayTasks = getDailyTasks ? getDailyTasks(getTodayDateStr()) : TASKS;
   const unfinishedCount = todayTasks.filter((task) => !task.completed).length;
@@ -46,18 +47,8 @@ export default function AppSidebar({ currentPage }) {
         </span>
       </a>
 
-      <div className="side-farm">
-        <label htmlFor="farmSel">{t('dash.farm', 'Active farm')}</label>
-        <select
-          id="farmSel"
-          className="select"
-          value={farmKey}
-          onChange={(e) => setFarmKey(e.target.value)}
-        >
-          <option value="a">{L(FARMS.a.name)}</option>
-          <option value="b">{L(FARMS.b.name)}</option>
-        </select>
-      </div>
+      <FarmSelector />
+      <AddPlotModal />
 
       <nav className="snav" aria-label="App">
         {navItems.map((item) => {
