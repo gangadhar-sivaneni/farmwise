@@ -21,10 +21,6 @@ export default function AppTopbar({ currentPage }) {
   return (
     <header className="panel topbar">
       <h2 id="pageTitle">{t(titleKey, defaultTitles[currentPage] || 'Overview')}</h2>
-      <span className="pill demo">
-        <i />
-        <span>{t('demo', 'Demo Mode')}</span>
-      </span>
       <div className="r">
         <LanguageSwitcher />
         <span className="avatar" aria-label="Gangadhar">

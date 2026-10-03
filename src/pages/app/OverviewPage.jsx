@@ -168,10 +168,6 @@ export default function OverviewPage() {
         <div className="card">
           <div className="card-h">
             <h3>{t('ov.map', 'Field map')}</h3>
-            <span className="pill demo">
-              <i />
-              <span>{t('demoData', 'Demo data')}</span>
-            </span>
           </div>
           <div className="map">
             <img

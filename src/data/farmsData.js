@@ -1,6 +1,6 @@
 export const FARMS = {
   a: {
-    name: { en: 'Demo Farm · Telangana', te: 'డెమో పొలం · తెలంగాణ' },
+    name: { en: 'My Farm · Telangana', te: 'నా పొలం · తెలంగాణ' },
     loc: { en: 'Warangal district, Telangana', te: 'వరంగల్ జిల్లా, తెలంగాణ' },
     temp: 29,
     cond: { en: 'Partly cloudy', te: 'పాక్షికంగా మేఘావృతం' },

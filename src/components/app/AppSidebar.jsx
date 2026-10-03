@@ -81,9 +81,6 @@ export default function AppSidebar({ currentPage }) {
       </nav>
 
       <div className="side-foot">
-        <p className="demo">
-          {t('dash.foot', 'Demo mode — all figures are illustrative, not live.')}
-        </p>
         <button
           type="button"
           className="btn btn-ghost"

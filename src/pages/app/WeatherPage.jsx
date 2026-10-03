@@ -65,10 +65,6 @@ export default function WeatherPage() {
           <h1>{t('wx.h', 'The week ahead, in field terms')}</h1>
           <p>{t('wx.p', 'Warangal district')}</p>
         </div>
-        <span className="pill demo">
-          <i />
-          <span>{t('wx.demo', 'Demo forecast')}</span>
-        </span>
       </div>
 
       <div className="grid g-ov">

@@ -98,7 +98,7 @@ export default function ScanPage() {
       <div className="page-h">
         <div>
           <h1>{t('scan.h', 'Photograph a leaf, catch problems early')}</h1>
-          <p>{t('scan.p', 'A demo of how FarmWise flags a likely issue.')}</p>
+          <p>{t('scan.p', 'Photograph one leaf to flag a likely pest or disease.')}</p>
         </div>
       </div>
 

@@ -27,7 +27,7 @@ export default function StatsStrip() {
         </div>
         <div className="cyc">
           <div className="top">
-            <span className="mono">{t('st.cycle', 'Maize growth · Demo Farm')}</span>
+            <span className="mono">{t('st.cycle', 'Maize growth · My Farm')}</span>
             <span className="pill ok">67%</span>
           </div>
           <span className="n">
