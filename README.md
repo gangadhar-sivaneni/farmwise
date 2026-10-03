@@ -57,6 +57,14 @@ Open [http://localhost:5173/#/app/scan](http://localhost:5173/#/app/scan) to acc
 
 ---
 
+## Date-Specific Farm Tasks
+
+The **Today’s Tasks** calendar prepares a short suggestion list for the selected local date using the active farm’s plot and alert records plus that date’s available forecast. Tasks are saved per date in browser local storage. Suggestions are stored separately from farmer-added tasks, edits, deletions, and completion states, so refreshed weather recommendations do not overwrite farmer changes. Dates without saved history or time-sensitive suggestions can be left empty or filled with a farmer-created task.
+
+Weather-derived suggestions use forecasts and model estimates where available; they are not field sensor measurements. When weather is unavailable for the selected date, the page says so and uses only farm records or general checks.
+
+---
+
 ## Safe Advice & Agronomic Guidelines
 - All assessments are presented as **preliminary AI visual evaluations**, never certified laboratory diagnoses.
 - The scanner **never** recommends specific commercial pesticide brands, chemical mixtures, or dosages.

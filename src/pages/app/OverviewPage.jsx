@@ -4,12 +4,25 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useApp } from '../../context/AppContext';
 import { byId, cropCost, fmt, IMG } from '../../data/cropsData';
 import { FORECAST } from '../../data/weatherData';
-import { TASKS } from '../../data/tasksData';
+import { TASKS, getTodayDateStr } from '../../data/tasksData';
 import { STAGES } from '../../data/translations';
 
 export default function OverviewPage() {
   const { t, L, loc, W, lang } = useLanguage();
-  const { activeFarm, tasksDone, toggleTask, scanAlerts = [], dismissScanAlert, weatherData, locationInfo } = useApp();
+  const {
+    activeFarm,
+    tasksDone,
+    toggleTask,
+    getDailyTasks,
+    toggleDailyTask,
+    scanAlerts = [],
+    dismissScanAlert,
+    weatherData,
+    locationInfo
+  } = useApp();
+
+  const todayStr = getTodayDateStr();
+  const todayTasksList = getDailyTasks ? getDailyTasks(todayStr) : TASKS;
 
   const h = new Date().getHours();
   const greetWord = L(h < 12 ? W.morning : h < 17 ? W.afternoon : W.evening);
@@ -96,7 +109,7 @@ export default function OverviewPage() {
     </div>
   );
 
-  const doneCount = TASKS.filter((t) => tasksDone[t.id]).length;
+  const doneCount = todayTasksList.filter((t) => t.completed).length;
 
   return (
     <section className="panel page" data-page="overview" style={{ display: 'block' }}>
@@ -316,21 +329,21 @@ export default function OverviewPage() {
                 id="miniTaskCount"
                 style={{ fontSize: '13.5px', textDecoration: 'none' }}
               >
-                {`${doneCount} / ${TASKS.length} ${L(W.done)}`}
+                {`${doneCount} / ${todayTasksList.length} ${L(W.done)}`}
               </a>
             </div>
             <div id="miniTasks">
-              {TASKS.slice(0, 4).map((task) => (
+              {todayTasksList.slice(0, 4).map((task) => (
                 <label key={task.id} className="mt">
                   <input
                     type="checkbox"
-                    checked={!!tasksDone[task.id]}
-                    onChange={() => toggleTask(task.id)}
+                    checked={!!task.completed}
+                    onChange={() => (toggleDailyTask ? toggleDailyTask(todayStr, task.id) : toggleTask(task.id))}
                   />
                   <span className="box">
                     <Icon name="check" className="ico sm" />
                   </span>
-                  <span className="txt">{L(task.t)}</span>
+                  <span className="txt">{L(task.title || task.t)}</span>
                 </label>
               ))}
             </div>

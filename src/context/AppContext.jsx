@@ -1,7 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { FARMS } from '../data/farmsData';
 import { CROPS, byId, cropCost } from '../data/cropsData';
-import { TASKS } from '../data/tasksData';
+import {
+  TASKS,
+  getTasksForDate,
+  toggleTaskComplete,
+  addTaskForDate,
+  editTaskForDate,
+  deleteTaskForDate,
+  getTodayDateStr
+} from '../data/tasksData';
 import { useLanguage } from './LanguageContext';
 import {
   getUserLocation,
@@ -82,6 +90,71 @@ export function AppProvider({ children }) {
     });
   }, [showToast, W]);
 
+  // Daily Tasks state & operations
+  const [weatherData, setWeatherData] = useState(null);
+  const [weatherLoading, setWeatherLoading] = useState(true);
+  const [weatherStatus, setWeatherStatus] = useState('detecting_location');
+  const [weatherStatusMessage, setWeatherStatusMessage] = useState({
+    en: 'Detecting your location...',
+    te: 'మీ స్థానాన్ని గుర్తిస్తోంది...',
+  });
+  const [weatherError, setWeatherError] = useState(null);
+  const [locationInfo, setLocationInfo] = useState({
+    latitude: null,
+    longitude: null,
+    name: FARMS[farmKey]?.loc || { en: 'Detecting location...', te: 'స్థానాన్ని గుర్తిస్తోంది...' },
+    isLiveGPS: false,
+    isFallback: false,
+  });
+  const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
+
+  const [dailyTasksVer, setDailyTasksVer] = useState(0);
+
+  const getDailyTasks = useCallback((dateStr) => {
+    return getTasksForDate(dateStr, FARMS[farmKey], weatherData);
+  }, [farmKey, weatherData, dailyTasksVer]);
+
+  const toggleDailyTask = useCallback((dateStr, taskId) => {
+    const updated = toggleTaskComplete(dateStr, taskId, FARMS[farmKey], weatherData);
+    setDailyTasksVer((v) => v + 1);
+    const todayStr = getTodayDateStr();
+    if (dateStr === todayStr) {
+      const task = updated.find((t) => t.id === taskId);
+      if (task) {
+        setTasksDoneState((prev) => {
+          const next = { ...prev, [taskId]: task.completed };
+          try {
+            localStorage.setItem('fw.tasks', JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+      }
+    }
+    const doneCount = updated.filter((t) => t.completed).length;
+    if (doneCount === updated.length && updated.length > 0) {
+      showToast(W.allDone);
+    }
+    return updated;
+  }, [farmKey, weatherData, showToast, W]);
+
+  const addDailyTask = useCallback((dateStr, taskInput) => {
+    const updated = addTaskForDate(dateStr, taskInput, FARMS[farmKey], weatherData);
+    setDailyTasksVer((v) => v + 1);
+    return updated;
+  }, [farmKey, weatherData]);
+
+  const editDailyTask = useCallback((dateStr, taskId, fields) => {
+    const updated = editTaskForDate(dateStr, taskId, fields, FARMS[farmKey], weatherData);
+    setDailyTasksVer((v) => v + 1);
+    return updated;
+  }, [farmKey, weatherData]);
+
+  const deleteDailyTask = useCallback((dateStr, taskId) => {
+    const updated = deleteTaskForDate(dateStr, taskId, FARMS[farmKey], weatherData);
+    setDailyTasksVer((v) => v + 1);
+    return updated;
+  }, [farmKey, weatherData]);
+
   const toggleCompare = useCallback((cropId) => {
     setCompareSelState((prev) => {
       let next;
@@ -145,23 +218,6 @@ export function AppProvider({ children }) {
   }, []);
 
   // Weather & Geolocation State
-  const [weatherData, setWeatherData] = useState(null);
-  const [weatherLoading, setWeatherLoading] = useState(true);
-  const [weatherStatus, setWeatherStatus] = useState('detecting_location');
-  const [weatherStatusMessage, setWeatherStatusMessage] = useState({
-    en: 'Detecting your location...',
-    te: 'మీ స్థానాన్ని గుర్తిస్తోంది...',
-  });
-  const [weatherError, setWeatherError] = useState(null);
-  const [locationInfo, setLocationInfo] = useState({
-    latitude: null,
-    longitude: null,
-    name: FARMS[farmKey]?.loc || { en: 'Detecting location...', te: 'స్థానాన్ని గుర్తిస్తోంది...' },
-    isLiveGPS: false,
-    isFallback: false,
-  });
-  const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
-
   const locationInfoRef = useRef(locationInfo);
   locationInfoRef.current = locationInfo;
 
@@ -329,6 +385,13 @@ export function AppProvider({ children }) {
         activeFarm: FARMS[farmKey],
         tasksDone,
         toggleTask,
+        // Daily tasks engine
+        dailyTasksVer,
+        getDailyTasks,
+        toggleDailyTask,
+        addDailyTask,
+        editDailyTask,
+        deleteDailyTask,
         compareSel,
         toggleCompare,
         setComparePair,

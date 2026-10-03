@@ -4,13 +4,14 @@ import Icon from '../common/Icon';
 import { useLanguage } from '../../context/LanguageContext';
 import { useApp } from '../../context/AppContext';
 import { FARMS } from '../../data/farmsData';
-import { TASKS } from '../../data/tasksData';
+import { TASKS, getTodayDateStr } from '../../data/tasksData';
 
 export default function AppSidebar({ currentPage }) {
   const { t, L, showToast, W } = useLanguage();
-  const { farmKey, setFarmKey, tasksDone, setSignedIn } = useApp();
+  const { farmKey, setFarmKey, tasksDone, setSignedIn, getDailyTasks } = useApp();
 
-  const unfinishedCount = TASKS.filter((task) => !tasksDone[task.id]).length;
+  const todayTasks = getDailyTasks ? getDailyTasks(getTodayDateStr()) : TASKS;
+  const unfinishedCount = todayTasks.filter((task) => !task.completed).length;
 
   const navItems = [
     { page: 'overview', icon: 'grid', labelKey: 'p.overview', defaultLabel: 'Overview' },
