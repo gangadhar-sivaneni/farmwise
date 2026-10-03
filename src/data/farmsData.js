@@ -1,7 +1,8 @@
 export const FARMS = {
   a: {
-    name: { en: 'Demo Farm · Telangana', te: 'డెమో పొలం · తెలంగాణ' },
+    name: { en: 'My Farm · Telangana', te: 'నా పొలం · తెలంగాణ' },
     loc: { en: 'Warangal district, Telangana', te: 'వరంగల్ జిల్లా, తెలంగాణ' },
+    coords: { lat: 17.9784, lon: 79.5941 },
     temp: 29,
     cond: { en: 'Partly cloudy', te: 'పాక్షికంగా మేఘావృతం' },
     plots: [
@@ -20,6 +21,7 @@ export const FARMS = {
   b: {
     name: { en: 'Riverside Plot · Khammam', te: 'నదీతీర ప్లాట్ · ఖమ్మం' },
     loc: { en: 'Khammam district, Telangana', te: 'ఖమ్మం జిల్లా, తెలంగాణ' },
+    coords: { lat: 17.2473, lon: 80.1514 },
     temp: 31,
     cond: { en: 'Humid, hazy sun', te: 'తేమతో మసక ఎండ' },
     plots: [

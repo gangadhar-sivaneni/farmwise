@@ -8,6 +8,7 @@ export default function IconSprite() {
         <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6L6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></symbol>
         <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 19h10.2a4.3 4.3 0 0 0 .4-8.6A6.2 6.2 0 0 0 5.8 12 3.6 3.6 0 0 0 7 19z"/></symbol>
         <symbol id="i-cloudsun" viewBox="0 0 24 24"><path d="M8.5 2.5v1.6M3.3 7.6h1.6M4.9 4l1.1 1.1M12.1 4L11 5.1"/><path d="M5.6 10.5a3.4 3.4 0 0 1 6.2-2.4"/><path d="M9.5 20.5h8.3a3.6 3.6 0 0 0 .3-7.2 5.1 5.1 0 0 0-9.7 1.4 2.9 2.9 0 0 0 1.1 5.8z"/></symbol>
+        <symbol id="i-wind" viewBox="0 0 24 24"><path d="M4 8h11a2.5 2.5 0 1 0-2.3-3.4M3 13h15a3 3 0 1 1-2.8 4M5 18h8a2 2 0 1 0-1.8-2.8"/></symbol>
         <symbol id="i-rain" viewBox="0 0 24 24"><path d="M7 15h10.2a4.3 4.3 0 0 0 .4-8.6A6.2 6.2 0 0 0 5.8 8 3.6 3.6 0 0 0 7 15z"/><path d="M8.5 18l-1 2.8M12.5 18l-1 2.8M16.5 18l-1 2.8"/></symbol>
         <symbol id="i-sprout" viewBox="0 0 24 24"><path d="M12 21v-9"/><path d="M12 12c0-4-3-6.5-7.5-6.5 0 4 3 6.5 7.5 6.5z"/><path d="M12 10.5c0-3.8 2.6-6.5 7.5-6.5 0 4.2-3 6.5-7.5 6.5z"/></symbol>
         <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-6.3 7-11.6a7 7 0 0 0-14 0C5 14.7 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></symbol>

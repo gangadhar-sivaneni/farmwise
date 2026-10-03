@@ -1,8 +1,13 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { FARMS } from '../data/farmsData';
 import { CROPS, byId, cropCost } from '../data/cropsData';
 import { TASKS } from '../data/tasksData';
 import { useLanguage } from './LanguageContext';
+import {
+  getUserLocation,
+  fetchWeather,
+  reverseGeocode,
+} from '../services/weatherService';
 
 const AppContext = createContext();
 
@@ -101,6 +106,7 @@ export function AppProvider({ children }) {
     } catch {}
   }, []);
 
+  // Scan Alerts State (AI Crop Scanner)
   const [scanAlerts, setScanAlertsState] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('fw.scan_alerts')) || [];
@@ -138,6 +144,181 @@ export function AppProvider({ children }) {
     });
   }, []);
 
+  // Weather & Geolocation State
+  const [weatherData, setWeatherData] = useState(null);
+  const [weatherLoading, setWeatherLoading] = useState(true);
+  const [weatherStatus, setWeatherStatus] = useState('detecting_location');
+  const [weatherStatusMessage, setWeatherStatusMessage] = useState({
+    en: 'Detecting your location...',
+    te: 'మీ స్థానాన్ని గుర్తిస్తోంది...',
+  });
+  const [weatherError, setWeatherError] = useState(null);
+  const [locationInfo, setLocationInfo] = useState({
+    latitude: null,
+    longitude: null,
+    name: FARMS[farmKey]?.loc || { en: 'Detecting location...', te: 'స్థానాన్ని గుర్తిస్తోంది...' },
+    isLiveGPS: false,
+    isFallback: false,
+  });
+  const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
+
+  const locationInfoRef = useRef(locationInfo);
+  locationInfoRef.current = locationInfo;
+
+  const farmKeyRef = useRef(farmKey);
+  farmKeyRef.current = farmKey;
+
+  // Load weather for coordinates
+  const loadWeatherForCoords = useCallback(
+    async (lat, lon, isLiveGPS = false, fallbackName = null, bypassCache = false) => {
+      setWeatherLoading(true);
+      setWeatherStatus('fetching_weather');
+      setWeatherStatusMessage({
+        en: 'Fetching live weather...',
+        te: 'ప్రత్యక్ష వాతావరణం తీసుకువస్తోంది...',
+      });
+      setWeatherError(null);
+
+      try {
+        const data = await fetchWeather(lat, lon, bypassCache);
+        setWeatherData(data);
+
+        let locName = fallbackName;
+        if (!locName || isLiveGPS) {
+          try {
+            const geo = await reverseGeocode(lat, lon);
+            if (geo?.displayName) {
+              locName = { en: geo.displayName, te: geo.displayName };
+            }
+          } catch {
+            if (!locName) {
+              locName = {
+                en: `${Number(lat).toFixed(2)}°N, ${Number(lon).toFixed(2)}°E`,
+                te: `${Number(lat).toFixed(2)}°N, ${Number(lon).toFixed(2)}°E`,
+              };
+            }
+          }
+        }
+
+        setLocationInfo({
+          latitude: lat,
+          longitude: lon,
+          name: locName || {
+            en: `${Number(lat).toFixed(2)}°N, ${Number(lon).toFixed(2)}°E`,
+            te: `${Number(lat).toFixed(2)}°N, ${Number(lon).toFixed(2)}°E`,
+          },
+          isLiveGPS,
+          isFallback: !isLiveGPS,
+        });
+
+        setWeatherStatus('ready');
+        setWeatherStatusMessage({
+          en: isLiveGPS ? 'Live GPS weather' : 'Registered farm weather',
+          te: isLiveGPS ? 'ప్రత్యక్ష GPS వాతావరణం' : 'నమోదిత పొలం వాతావరణం',
+        });
+      } catch (err) {
+        console.error('Failed to fetch weather:', err);
+        setWeatherError(err.message || 'Unable to fetch weather');
+        setWeatherStatus('error');
+        setWeatherStatusMessage({
+          en: 'Weather update failed',
+          te: 'వాతావరణం నవీకరణ విఫలమైంది',
+        });
+      } finally {
+        setWeatherLoading(false);
+      }
+    },
+    []
+  );
+
+  // Request user location via browser Geolocation API
+  const requestLocation = useCallback(
+    async (bypassCache = false) => {
+      setWeatherLoading(true);
+      setWeatherStatus('detecting_location');
+      setWeatherStatusMessage({
+        en: 'Detecting your location...',
+        te: 'మీ స్థానాన్ని గుర్తిస్తోంది...',
+      });
+      setWeatherError(null);
+
+      try {
+        const coords = await getUserLocation();
+        setLocationPermissionDenied(false);
+        await loadWeatherForCoords(coords.latitude, coords.longitude, true, null, bypassCache);
+      } catch (err) {
+        console.warn('Geolocation detection failed:', err);
+        const isDenied = err.code === 'PERMISSION_DENIED' || err.isDenied;
+        setLocationPermissionDenied(isDenied);
+
+        // Graceful fallback to currently selected farm coordinates (from existing farm selector)
+        const currentFarm = FARMS[farmKeyRef.current] || FARMS.a;
+        const fallbackCoords = currentFarm.coords || { lat: 17.9784, lon: 79.5941 };
+        const fallbackLoc = currentFarm.loc;
+
+        await loadWeatherForCoords(
+          fallbackCoords.lat,
+          fallbackCoords.lon,
+          false,
+          fallbackLoc,
+          bypassCache
+        );
+      }
+    },
+    [loadWeatherForCoords]
+  );
+
+  // Refresh weather function
+  const refreshWeather = useCallback(
+    async (forceGps = false) => {
+      if (forceGps || locationInfoRef.current.isLiveGPS) {
+        await requestLocation(true);
+      } else if (locationInfoRef.current.latitude && locationInfoRef.current.longitude) {
+        await loadWeatherForCoords(
+          locationInfoRef.current.latitude,
+          locationInfoRef.current.longitude,
+          false,
+          locationInfoRef.current.name,
+          true
+        );
+      } else {
+        await requestLocation(true);
+      }
+    },
+    [loadWeatherForCoords, requestLocation]
+  );
+
+  // Initial detection on mount
+  useEffect(() => {
+    requestLocation(false);
+  }, [requestLocation]);
+
+  // Periodic weather refresh (every 15 minutes)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (locationInfoRef.current.latitude && locationInfoRef.current.longitude) {
+        loadWeatherForCoords(
+          locationInfoRef.current.latitude,
+          locationInfoRef.current.longitude,
+          locationInfoRef.current.isLiveGPS,
+          locationInfoRef.current.name,
+          false
+        );
+      }
+    }, 15 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [loadWeatherForCoords]);
+
+  // When user switches active farm in sidebar: if not on live GPS, switch weather to that farm's location
+  useEffect(() => {
+    if (!locationInfoRef.current.isLiveGPS) {
+      const farm = FARMS[farmKey];
+      if (farm && farm.coords) {
+        loadWeatherForCoords(farm.coords.lat, farm.coords.lon, false, farm.loc, false);
+      }
+    }
+  }, [farmKey, loadWeatherForCoords]);
+
   return (
     <AppContext.Provider
       value={{
@@ -159,9 +340,20 @@ export function AppProvider({ children }) {
         setPlannerCrop,
         videoModalOpen,
         setVideoModalOpen,
+        // Scan alerts
         scanAlerts,
         saveScanAlert,
         dismissScanAlert,
+        // Real-time Weather & Location
+        weatherData,
+        weatherLoading,
+        weatherStatus,
+        weatherStatusMessage,
+        weatherError,
+        locationInfo,
+        locationPermissionDenied,
+        refreshWeather,
+        requestLocation,
       }}
     >
       {children}

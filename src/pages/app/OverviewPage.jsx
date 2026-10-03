@@ -9,7 +9,7 @@ import { STAGES } from '../../data/translations';
 
 export default function OverviewPage() {
   const { t, L, loc, W, lang } = useLanguage();
-  const { activeFarm, tasksDone, toggleTask, scanAlerts = [], dismissScanAlert } = useApp();
+  const { activeFarm, tasksDone, toggleTask, scanAlerts = [], dismissScanAlert, weatherData, locationInfo } = useApp();
 
   const h = new Date().getHours();
   const greetWord = L(h < 12 ? W.morning : h < 17 ? W.afternoon : W.evening);
@@ -44,11 +44,12 @@ export default function OverviewPage() {
 
   useEffect(() => {
     const t0 = performance.now();
+    const liveTemp = weatherData?.current?.temperature ?? activeFarm.temp;
     const target = {
       crops: activeFarm.plots.length,
       area: totals.acres,
       profit: totals.profit,
-      temp: activeFarm.temp,
+      temp: liveTemp,
     };
 
     let animId;
@@ -67,7 +68,7 @@ export default function OverviewPage() {
     };
     animId = requestAnimationFrame(step);
     return () => cancelAnimationFrame(animId);
-  }, [activeFarm, totals]);
+  }, [activeFarm, totals, weatherData]);
 
   const centroid = (poly) => {
     const pts = poly.split(' ').map((p) => p.split(',').map(Number));
@@ -105,7 +106,7 @@ export default function OverviewPage() {
             <span>{greetWord}</span>, <span>{t('name', 'Gangadhar')}</span>.
           </h1>
           <p id="farmSummary">
-            {`${L(activeFarm.loc)} · ${L({ en: 'Kharif 2026', te: 'ఖరీఫ్ 2026' })}`}
+            {`${L(locationInfo?.isLiveGPS && locationInfo?.name ? locationInfo.name : activeFarm.loc)} · ${L({ en: 'Kharif 2026', te: 'ఖరీఫ్ 2026' })}`}
           </p>
         </div>
         <span className="muted" id="todayDate">
@@ -152,14 +153,14 @@ export default function OverviewPage() {
 
         <div className="card kpi">
           <span className="k">
-            <Icon name="cloudsun" className="ico sm" />
+            <Icon name={weatherData?.current?.icon || "cloudsun"} className="ico sm" />
             <span>{t('kpi.wx', 'Weather')}</span>
           </span>
           <span className="v">
             <span id="kTemp">{displayVals.temp}</span>°C
           </span>
           <span className="s" id="kTempS">
-            {L(activeFarm.cond)}
+            {weatherData?.current?.condition ? L(weatherData.current.condition) : L(activeFarm.cond)}
           </span>
         </div>
       </div>
@@ -168,10 +169,6 @@ export default function OverviewPage() {
         <div className="card">
           <div className="card-h">
             <h3>{t('ov.map', 'Field map')}</h3>
-            <span className="pill demo">
-              <i />
-              <span>{t('demoData', 'Demo data')}</span>
-            </span>
           </div>
           <div className="map">
             <img
@@ -383,7 +380,7 @@ export default function OverviewPage() {
             </a>
           </div>
           <div className="wx-mini" id="wxMini">
-            {FORECAST.map((d, i) => (
+            {(weatherData?.forecast?.slice(0, 5) || FORECAST).map((d, i) => (
               <div key={i}>
                 <span>{dayName(i)}</span>
                 <Icon name={d.icon} className="ico" />

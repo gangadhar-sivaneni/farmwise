@@ -72,10 +72,6 @@ export default function LoginPage() {
           </a>
 
           <form className="login-form" id="loginForm" noValidate onSubmit={handleSubmit}>
-            <span className="pill demo">
-              <i />
-              <span>{t('demo', 'Demo Mode')}</span>
-            </span>
 
             <h1 style={{ marginTop: '16px' }}>{t('lg.h1', 'Welcome back, farmer.')}</h1>
             <p className="sub">
@@ -116,7 +112,7 @@ export default function LoginPage() {
                   />
                 </div>
                 <p className="muted" style={{ fontSize: '13px', marginTop: '6px' }}>
-                  {t('lg.otpHint', 'Demo mode: any 6 digits work. No SMS is sent.')}
+                  {t('lg.otpHint', 'Enter any 6 digits to continue.')}
                 </p>
               </div>
             )}
@@ -144,7 +140,7 @@ export default function LoginPage() {
               id="demoLogin"
               onClick={signIn}
             >
-              {t('lg.demo', 'Continue as demo farmer')}
+              {t('lg.demo', 'Continue as guest')}
             </button>
           </form>
 

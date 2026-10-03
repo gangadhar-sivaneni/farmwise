@@ -1,94 +1,318 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Icon from '../../components/common/Icon';
 import { useLanguage } from '../../context/LanguageContext';
+import { useApp } from '../../context/AppContext';
 import { FORECAST } from '../../data/weatherData';
+import {
+  generateFarmerTips,
+  getSoilMoistureInterpretation,
+  getSoilTempInterpretation,
+  getET0Interpretation,
+  getRainProbInterpretation,
+  getHumidityInterpretation,
+  getWindInterpretation,
+  getIrrigationInsight,
+  getSelectedDayInsight,
+} from '../../services/weatherService';
 
 export default function WeatherPage() {
   const { t, L, loc, W } = useLanguage();
+  const {
+    weatherData,
+    weatherLoading,
+    weatherStatusMessage,
+    weatherError,
+    locationInfo,
+    locationPermissionDenied,
+    refreshWeather,
+    requestLocation,
+    activeFarm,
+  } = useApp();
+
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+
+  const forecastList = weatherData?.forecast?.slice(0, 5) || FORECAST;
+
+  // Safe clamp in case list size changes
+  const activeIndex = Math.min(selectedDayIndex, Math.max(0, forecastList.length - 1));
+  const isSelectedToday = activeIndex === 0;
+  const selectedDay = forecastList[activeIndex] || forecastList[0] || {};
+
+  // Parse YYYY-MM-DD cleanly into local Date without UTC offset issues
+  const parseDateStr = (dateStr) => {
+    if (!dateStr) return null;
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    }
+    return null;
+  };
 
   const dayName = (i, style = 'short') => {
     if (i === 0) return L(W.today);
+    const dStr = weatherData?.forecast?.[i]?.dateStr;
+    const parsed = parseDateStr(dStr);
+    if (parsed) {
+      return parsed.toLocaleDateString(loc, { weekday: style });
+    }
     const d = new Date();
     d.setDate(d.getDate() + i);
     return d.toLocaleDateString(loc, { weekday: style });
   };
 
-  const wet = FORECAST.findIndex((d) => d.rain >= 60);
-  const dry = FORECAST.findIndex((d, i) => i > wet && d.rain <= 15);
-  const wd = dayName(wet >= 0 ? wet : 1, 'long');
-  const dd = dayName(dry >= 0 ? dry : 4, 'long');
+  // Title for the green detail panel header
+  const getPanelHeaderTitle = () => {
+    if (isSelectedToday) {
+      return t('wx.now', 'RIGHT NOW').toUpperCase();
+    }
+    const parsed = parseDateStr(selectedDay.dateStr);
+    if (parsed) {
+      return parsed.toLocaleDateString(loc, {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'short',
+      }).toUpperCase();
+    }
+    return dayName(activeIndex, 'long').toUpperCase();
+  };
 
-  const tips = [
-    {
-      ic: 'rain',
-      t: {
-        en: `Hold sprays — rain ${wd.toLowerCase()}`,
-        te: `స్ప్రేలు ఆపండి — ${wd} వర్షం`,
-      },
-      d: {
-        en: `${
-          FORECAST[wet >= 0 ? wet : 1].rain
-        }% chance. Fertilizer or pesticide applied now may wash off. Clear field drains instead.`,
-        te: `${
-          FORECAST[wet >= 0 ? wet : 1].rain
-        }% అవకాశం. ఇప్పుడు వేసిన ఎరువు, మందు కొట్టుకుపోవచ్చు.`,
-      },
-    },
-    {
-      ic: 'bug',
-      t: {
-        en: 'Humid nights raise pest risk',
-        te: 'తేమ రాత్రులు పురుగు ప్రమాదాన్ని పెంచుతాయి',
-      },
-      d: {
-        en: 'At 74% humidity, scout maize whorls for fall armyworm this week.',
-        te: '74% తేమలో, ఈ వారం మొక్కజొన్నలో కత్తెర పురుగు కోసం చూడండి.',
-      },
-    },
-    {
-      ic: 'sun',
-      t: {
-        en: `${dd}: best spraying window`,
-        te: `${dd}: స్ప్రేకు ఉత్తమ సమయం`,
-      },
-      d: {
-        en: 'Dry and calm. Spray early morning when wind is under 10 km/h.',
-        te: 'పొడిగా, ప్రశాంతంగా ఉంటుంది. ఉదయం వేళ స్ప్రే చేయండి.',
-      },
-    },
-  ];
+  // Farmer-friendly tips for the left advice card
+  const tips = weatherData?.current
+    ? generateFarmerTips(weatherData.current, weatherData.forecast, dayName)
+    : [
+        {
+          ic: 'rain',
+          t: {
+            en: 'Hold sprays — rain expected',
+            te: 'స్ప్రేలు ఆపండి — వర్షం అవకాశం',
+          },
+          d: {
+            en: 'Rain showers anticipated. Fertilizer or pesticide applied now may wash off. Clear field drains instead. (Rule-based recommendation)',
+            te: 'వర్షం అవకాశం. ఇప్పుడు వేసిన ఎరువు, మందు కొట్టుకుపోవచ్చు. మురుగు కాలువలను సరిచూసుకోండి. (సూచన మాత్రమే)',
+          },
+        },
+        {
+          ic: 'bug',
+          t: {
+            en: 'Humid nights raise pest risk',
+            te: 'తేమ రాత్రులు పురుగు ప్రమాదాన్ని పెంచుతాయి',
+          },
+          d: {
+            en: 'Humid conditions favor fungal growth and fall armyworm. Scout maize whorls and crop leaves.',
+            te: 'తేమ వాతావరణంలో, పంటలో కత్తెర పురుగు కోసం ఆకులను పరిశీలించండి.',
+          },
+        },
+        {
+          ic: 'sun',
+          t: {
+            en: 'Dry conditions: best spraying window',
+            te: 'స్ప్రేకు ఉత్తమ సమయం',
+          },
+          d: {
+            en: 'Dry and calm weather. Spray early morning when wind is under 12 km/h.',
+            te: 'పొడిగా, ప్రశాంతంగా ఉంటుంది. ఉదయం వేళ స్ప్రే చేయండి.',
+          },
+        },
+      ];
+
+  const cur = weatherData?.current;
+
+  // Selected Day vs Today Variables
+  const displayTemp = isSelectedToday
+    ? (cur ? cur.temperature : activeFarm.temp)
+    : (selectedDay.hi ?? activeFarm.temp);
+
+  const displayApparent = isSelectedToday
+    ? (cur ? cur.apparentTemperature : activeFarm.temp)
+    : null;
+
+  const displayCondition = isSelectedToday
+    ? (cur ? L(cur.condition) : L(activeFarm.cond))
+    : (selectedDay.condition ? L(selectedDay.condition) : L(activeFarm.cond));
+
+  const displayIcon = isSelectedToday
+    ? (cur ? cur.icon : 'cloudsun')
+    : (selectedDay.icon || 'cloudsun');
+
+  const displayHigh = isSelectedToday
+    ? (cur?.todayMax ?? selectedDay.hi ?? (displayTemp + 2))
+    : selectedDay.hi;
+
+  const displayLow = isSelectedToday
+    ? (cur?.todayMin ?? selectedDay.lo ?? (displayTemp - 5))
+    : selectedDay.lo;
+
+  // 6 fixed metrics for the selected day (identical structure for all days)
+  const displayHumidity = isSelectedToday
+    ? (cur?.humidity ?? (weatherData ? null : 74))
+    : (selectedDay.humidity ?? null);
+
+  const displayRain = isSelectedToday
+    ? (cur?.precipitationProbability ?? (weatherData ? null : 20))
+    : (selectedDay.rain ?? null);
+
+  const displayWind = isSelectedToday
+    ? (cur?.windSpeed ?? (weatherData ? null : 12))
+    : (selectedDay.wind ?? null);
+
+  const displaySoilMoist = isSelectedToday
+    ? (cur?.soilMoisture ?? (weatherData ? null : 0.24))
+    : (selectedDay.soilMoisture ?? null);
+
+  const displaySoilTemp = isSelectedToday
+    ? (cur?.soilTemperature ?? (weatherData ? null : 27))
+    : (selectedDay.soilTemperature ?? null);
+
+  const displayET0 = isSelectedToday
+    ? (cur?.et0 ?? (weatherData ? null : 3.8))
+    : (selectedDay.et0 ?? null);
+
+  // Selected Day Agricultural / Irrigation Insight
+  const panelHeaderTitle = getPanelHeaderTitle();
+  const dayInsight = isSelectedToday
+    ? getIrrigationInsight(cur, weatherData?.forecast)
+    : getSelectedDayInsight(selectedDay, panelHeaderTitle, false, cur);
+
+  // Location display
+  let locationDisplay = '';
+  if (weatherLoading && !weatherData) {
+    locationDisplay = L(weatherStatusMessage);
+  } else if (locationInfo?.isLiveGPS && locationInfo?.name) {
+    const coordsStr =
+      locationInfo.latitude && locationInfo.longitude
+        ? ` (${Number(locationInfo.latitude).toFixed(2)}°N, ${Number(locationInfo.longitude).toFixed(2)}°E)`
+        : '';
+    locationDisplay = `${L(locationInfo.name)}${coordsStr}`;
+  } else if (locationInfo?.name) {
+    locationDisplay = `${L(locationInfo.name)} · ${L(activeFarm.name)}`;
+  } else {
+    locationDisplay = L(activeFarm.loc);
+  }
 
   return (
     <section className="panel page" data-page="weather" style={{ display: 'block' }}>
       <div className="page-h">
         <div>
           <h1>{t('wx.h', 'The week ahead, in field terms')}</h1>
-          <p>{t('wx.p', 'Warangal district')}</p>
+          <p id="weatherLocation">{locationDisplay}</p>
         </div>
-        <span className="pill demo">
-          <i />
-          <span>{t('wx.demo', 'Demo forecast')}</span>
-        </span>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {weatherLoading ? (
+            <span className="pill" style={{ background: 'var(--soft)' }}>
+              <i
+                className="spin"
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderWidth: '1.5px',
+                  marginRight: '4px',
+                  display: 'inline-block',
+                }}
+              />
+              <span>{L(weatherStatusMessage)}</span>
+            </span>
+          ) : locationInfo?.isLiveGPS ? (
+            <span className="pill ok">
+              <i />
+              <span>{L({ en: 'Live GPS Weather', te: 'ప్రత్యక్ష GPS వాతావరణం' })}</span>
+            </span>
+          ) : (
+            <span className="pill demo">
+              <i />
+              <span>{L({ en: 'Farm Location Weather', te: 'పొలం స్థాన వాతావరణం' })}</span>
+            </span>
+          )}
+
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => refreshWeather(true)}
+            title={L({ en: 'Refresh live weather', te: 'వాతావరణం రిఫ్రెష్ చేయండి' })}
+            aria-label="Refresh weather"
+          >
+            <Icon name="reset" className={`ico sm ${weatherLoading ? 'spin' : ''}`} />
+          </button>
+        </div>
       </div>
+
+      {locationPermissionDenied && (
+        <div className="alert" role="status" style={{ marginBottom: '16px' }}>
+          <div className="h">
+            <Icon name="alert" className="ico" />
+            <span>{L({ en: 'Location Permission Denied', te: 'స్థాన అనుమతి నిరాకరించబడింది' })}</span>
+          </div>
+          <p>
+            {L({
+              en: 'Browser location access was denied. Showing real-time Open-Meteo weather for your registered farm location. Enable location in browser settings to detect your field automatically.',
+              te: 'బ్రౌజర్ లొకేషన్ అనుమతి నిరాకరించబడింది. ప్రస్తుతం నమోదిత పొలం స్థానానికి Open-Meteo వాతావరణం చూపిస్తున్నాం. మీ ఖచ్చితమైన పొలం కోసం బ్రౌజర్‌లో లొకేషన్ అనుమతించండి.',
+            })}
+          </p>
+          <button
+            type="button"
+            className="btn sm"
+            onClick={() => requestLocation(true)}
+            style={{ marginTop: '4px' }}
+          >
+            <Icon name="pin" className="ico sm" />
+            <span>{L({ en: 'Retry Location Access', te: 'లొకేషన్ మళ్లీ ప్రయత్నించండి' })}</span>
+          </button>
+        </div>
+      )}
+
+      {weatherError && !weatherData && (
+        <div className="alert" role="status" style={{ marginBottom: '16px' }}>
+          <div className="h">
+            <Icon name="alert" className="ico" />
+            <span>{L({ en: 'Weather Service Notice', te: 'వాతావరణ సమాచారం' })}</span>
+          </div>
+          <p>{weatherError}</p>
+          <button
+            type="button"
+            className="btn sm"
+            onClick={() => refreshWeather(true)}
+            style={{ marginTop: '4px' }}
+          >
+            <Icon name="reset" className="ico sm" />
+            <span>{L({ en: 'Retry Weather Fetch', te: 'మళ్లీ ప్రయత్నించండి' })}</span>
+          </button>
+        </div>
+      )}
 
       <div className="grid g-ov">
         <div className="card">
-          <div className="days" id="days">
-            {FORECAST.map((d, i) => (
-              <div key={i} className={`day ${i === 0 ? 'today' : ''}`}>
-                <span className="n">{dayName(i, 'short')}</span>
-                <Icon name={d.icon} className="ico" />
-                <span className="hl num">
-                  {d.hi}° <span>{d.lo}°</span>
-                </span>
-                <div className="rain" aria-hidden="true">
-                  <i style={{ height: `${Math.max(4, (d.rain / 100) * 44)}px` }} />
+          <div className="days" id="days" role="tablist" aria-label="Forecast days">
+            {forecastList.map((d, i) => {
+              const isSelected = activeIndex === i;
+              return (
+                <div
+                  key={i}
+                  role="tab"
+                  tabIndex={0}
+                  aria-selected={isSelected}
+                  className={`day ${isSelected ? 'selected' : ''}`}
+                  onClick={() => setSelectedDayIndex(i)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedDayIndex(i);
+                    }
+                  }}
+                  title={dayName(i, 'long')}
+                >
+                  <span className="n">{dayName(i, 'short')}</span>
+                  <Icon name={d.icon} className="ico" />
+                  <span className="hl num">
+                    {d.hi}° <span>{d.lo}°</span>
+                  </span>
+                  <div className="rain" aria-hidden="true">
+                    <i style={{ height: `${Math.max(4, (d.rain / 100) * 44)}px` }} />
+                  </div>
+                  <span className="rp">
+                    {d.rain}% {L(W.rain)}
+                  </span>
                 </div>
-                <span className="rp">
-                  {d.rain}% {L(W.rain)}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div style={{ marginTop: '16px' }} id="advice">
@@ -107,31 +331,127 @@ export default function WeatherPage() {
         </div>
 
         <div className="card dark-card wx-now">
-          <div>
-            <span className="muted">{t('wx.now', 'Right now')}</span>
-            <div className="t num" style={{ marginTop: '12px' }}>
-              29<sup>°C</sup>
+          <div className="wx-now-header">
+            <span className="muted">{panelHeaderTitle}</span>
+            {isSelectedToday ? (
+              displayApparent !== null && (
+                <span className="wx-feels">
+                  {L({ en: 'Feels', te: 'అనిపించేది' })} {displayApparent}°C
+                </span>
+              )
+            ) : (
+              <span className="wx-feels">
+                {L({ en: 'Daily Forecast', te: 'రోజువారీ సూచన' })}
+              </span>
+            )}
+          </div>
+
+          <div className="wx-hero">
+            <div className="wx-hero-main">
+              <div className="t num">
+                {displayTemp}<sup>°C</sup>
+              </div>
+              <div className="wx-hero-cond">
+                <Icon name={displayIcon} className="ico" />
+                <span>{displayCondition}</span>
+              </div>
             </div>
-            <p style={{ marginTop: '12px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <Icon name="cloudsun" className="ico" />
-              <span>{t('wx.pc', 'Partly Cloudy')}</span>
-            </p>
+            <div className="wx-hero-range">
+              <span>
+                {t('wx.high', 'High')} {displayHigh}° · {t('wx.low', 'Low')} {displayLow}°
+              </span>
+            </div>
           </div>
 
           <div className="wx-stats">
             <div>
-              <span>{t('wx.rain', 'Rain')}</span>
-              <b>20%</b>
+              <span className="lbl">
+                <Icon name="drop" className="ico" />
+                <span>{t('wx.hum', 'Humidity')}</span>
+              </span>
+              <b>{displayHumidity != null ? `${displayHumidity}%` : '—'}</b>
+              <small className="sub">
+                {displayHumidity != null
+                  ? L(getHumidityInterpretation(displayHumidity))
+                  : '—'}
+              </small>
             </div>
+
             <div>
-              <span>{t('wx.hum', 'Humidity')}</span>
-              <b>74%</b>
+              <span className="lbl">
+                <Icon name="rain" className="ico" />
+                <span>{t('wx.rainProb', 'Rain Probability')}</span>
+              </span>
+              <b>{displayRain != null ? `${displayRain}%` : '—'}</b>
+              <small className="sub">
+                {displayRain != null
+                  ? L(getRainProbInterpretation(displayRain))
+                  : '—'}
+              </small>
             </div>
+
             <div>
-              <span>{t('wx.wind', 'Wind')}</span>
-              <b>12 km/h</b>
+              <span className="lbl">
+                <Icon name="wind" className="ico" />
+                <span>{t('wx.wind', 'Wind')}</span>
+              </span>
+              <b>{displayWind != null ? `${displayWind} km/h` : '—'}</b>
+              <small className="sub">
+                {displayWind != null
+                  ? L(getWindInterpretation(displayWind))
+                  : '—'}
+              </small>
+            </div>
+
+            <div>
+              <span className="lbl">
+                <Icon name="sprout" className="ico" />
+                <span>{t('wx.soilMoist', 'Soil Moisture')}</span>
+              </span>
+              <b>{displaySoilMoist != null ? `${displaySoilMoist} m³/m³` : '—'}</b>
+              <small className="sub">
+                {displaySoilMoist != null
+                  ? L(getSoilMoistureInterpretation(displaySoilMoist))
+                  : '—'}
+              </small>
+            </div>
+
+            <div>
+              <span className="lbl">
+                <Icon name="layers" className="ico" />
+                <span>{t('wx.soilTemp', 'Soil Temperature')}</span>
+              </span>
+              <b>{displaySoilTemp != null ? `${displaySoilTemp}°C` : '—'}</b>
+              <small className="sub">
+                {displaySoilTemp != null
+                  ? L(getSoilTempInterpretation(displaySoilTemp))
+                  : '—'}
+              </small>
+            </div>
+
+            <div>
+              <span className="lbl">
+                <Icon name="tap" className="ico" />
+                <span>{t('wx.et0', 'ET₀ (Water loss)')}</span>
+              </span>
+              <b>{displayET0 != null ? `${displayET0} mm/d` : '—'}</b>
+              <small className="sub">
+                {displayET0 != null
+                  ? L(getET0Interpretation(displayET0))
+                  : '—'}
+              </small>
             </div>
           </div>
+
+          {dayInsight && (
+            <div className="wx-insight-box">
+              <div className="h">
+                <Icon name="tap" className="ico" />
+                <span>{L(dayInsight.title)}</span>
+              </div>
+              <p>{L(dayInsight.body)}</p>
+            </div>
+          )}
         </div>
       </div>
     </section>
