@@ -2,61 +2,39 @@ import React, { useState, useEffect } from 'react';
 import BrandMark from '../components/common/BrandMark';
 import Icon from '../components/common/Icon';
 import { useLanguage } from '../context/LanguageContext';
-import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
+
+const BAD = { en: 'Invalid email or password', te: 'ఈమెయిల్ లేదా పాస్‌వర్డ్ తప్పు' };
 
 export default function LoginPage() {
   const { t, L, showToast, W } = useLanguage();
-  const { setSignedIn } = useApp();
+  const { login } = useAuth();
 
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpStep, setOtpStep] = useState(false);
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [show, setShow] = useState(false);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    const prev = document.title;
     document.title = 'FarmWise — Login';
+    return () => { document.title = prev; };
   }, []);
 
-  const handlePhoneChange = (e) => {
-    const val = e.target.value.replace(/\D/g, '').slice(0, 10);
-    setPhone(val);
-  };
-
-  const handleOtpChange = (e) => {
-    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
-    setOtp(val);
-  };
-
-  const signIn = () => {
-    setSignedIn(true);
-    setOtpStep(false);
-    setPhone('');
-    setOtp('');
-    setError('');
-    window.location.hash = '#/app/overview';
-    showToast(W.welcome);
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!/^[6-9]\d{9}$/.test(phone)) {
-      setError(L(W.phoneErr));
+    if (busy) return;
+    setBusy(true);
+    const ok = email.trim() && password ? await login(email, password) : false;
+    setBusy(false);
+    if (!ok) {
+      setError(BAD); // same message for unknown email and wrong password
+      setPassword('');
       return;
     }
-
-    if (!otpStep) {
-      setOtpStep(true);
-      setError('');
-      showToast(W.otpSent);
-      return;
-    }
-
-    if (!/^\d{6}$/.test(otp)) {
-      setError(L(W.otpErr));
-      return;
-    }
-
-    signIn();
+    window.location.replace('#/app/overview');
+    showToast(W.welcome);
   };
 
   return (
@@ -75,50 +53,51 @@ export default function LoginPage() {
 
             <h1 style={{ marginTop: '16px' }}>{t('lg.h1', 'Welcome back, farmer.')}</h1>
             <p className="sub">
-              {t('lg.sub', 'Sign in with your mobile number. We’ll send a one-time code.')}
+              {L({ en: 'Sign in with your FarmWise account email and password.', te: 'మీ FarmWise ఖాతా ఈమెయిల్, పాస్‌వర్డ్‌తో లాగిన్ అవ్వండి.' })}
             </p>
 
             <div className="fld">
-              <label htmlFor="phone">{t('lg.phone', 'Mobile number')}</label>
+              <label htmlFor="email">{L({ en: 'Email', te: 'ఈమెయిల్' })}</label>
               <div className="inp">
-                <span className="pre">+91</span>
                 <input
-                  id="phone"
-                  type="tel"
-                  inputMode="numeric"
-                  maxLength={10}
-                  autoComplete="tel-national"
-                  placeholder="98765 43210"
-                  value={phone}
-                  onChange={handlePhoneChange}
+                  id="email"
+                  type="email"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => { setEmail(e.target.value); setError(null); }}
                 />
               </div>
             </div>
 
-            {otpStep && (
-              <div className="fld" id="otpFld">
-                <label htmlFor="otp">{t('lg.otp', '6-digit code')}</label>
-                <div className="inp">
-                  <input
-                    id="otp"
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    autoComplete="one-time-code"
-                    placeholder="••••••"
-                    value={otp}
-                    onChange={handleOtpChange}
-                    autoFocus
-                  />
-                </div>
-                <p className="muted" style={{ fontSize: '13px', marginTop: '6px' }}>
-                  {t('lg.otpHint', 'Enter any 6 digits to continue.')}
-                </p>
+            <div className="fld">
+              <label htmlFor="password">{L({ en: 'Password', te: 'పాస్‌వర్డ్' })}</label>
+              <div className="inp">
+                <input
+                  id="password"
+                  type={show ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  placeholder="••••••"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setError(null); }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-ghost sm pw-toggle"
+                  onClick={() => setShow((v) => !v)}
+                  aria-pressed={show}
+                  aria-controls="password"
+                >
+                  <Icon name="eye" className="ico sm" />
+                  <span>{L(show ? { en: 'Hide', te: 'దాచు' } : { en: 'Show', te: 'చూపు' })}</span>
+                </button>
               </div>
-            )}
+            </div>
 
             <p className="err" id="loginErr" role="alert">
-              {error}
+              {error ? L(error) : ''}
             </p>
 
             <button
@@ -126,29 +105,15 @@ export default function LoginPage() {
               className="btn btn-dark"
               style={{ width: '100%', minHeight: '48px' }}
               id="loginBtn"
+              disabled={busy}
             >
-              <span>{otpStep ? L(W.verify) : L(W.send)}</span>
+              <span>{L({ en: 'Log in', te: 'లాగిన్' })}</span>
               <Icon name="arrow" className="ico sm" />
-            </button>
-
-            <div className="or">{t('lg.or', 'or')}</div>
-
-            <button
-              type="button"
-              className="btn"
-              style={{ width: '100%', minHeight: '48px' }}
-              id="demoLogin"
-              onClick={signIn}
-            >
-              {t('lg.demo', 'Continue as guest')}
             </button>
           </form>
 
           <p className="muted" style={{ fontSize: '13px' }}>
-            {t(
-              'lg.note',
-              'Prototype only — no account is created and nothing leaves this browser.'
-            )}
+            {L({ en: 'Demo sign-in for invited accounts only — no sign-up. Not production-grade security; your data stays in this browser.', te: 'ఆహ్వానిత ఖాతాలకు మాత్రమే డెమో లాగిన్ — కొత్త నమోదు లేదు. ఇది పూర్తి భద్రత కాదు; మీ సమాచారం ఈ బ్రౌజర్‌లోనే ఉంటుంది.' })}
           </p>
         </div>
 

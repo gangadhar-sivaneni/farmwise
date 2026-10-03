@@ -1,0 +1,32 @@
+import React, { createContext, useCallback, useContext, useState } from 'react';
+import * as auth from '../services/authService';
+
+const AuthContext = createContext(null);
+
+/**
+ * Signed-in user. `children` is a render function receiving the user, so the data providers can be
+ * keyed by user id: switching account or logging out remounts them and drops every bit of in-memory state.
+ */
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(auth.currentUser);
+
+  const login = useCallback(async (email, password) => {
+    const u = await auth.login(email, password);
+    if (u) setUser(u);
+    return !!u;
+  }, []);
+
+  const logout = useCallback(() => {
+    auth.logout();
+    setUser(null);
+    window.location.replace('#/login'); // replace: Back does not return to the dashboard
+  }, []);
+
+  return <AuthContext.Provider value={{ user, login, logout }}>{children(user)}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
+  return ctx;
+}

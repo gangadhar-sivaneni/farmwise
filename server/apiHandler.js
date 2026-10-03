@@ -49,20 +49,26 @@ export function createApiMiddleware(getApiKey) {
       }
 
       let bodyText = '';
+      let tooLarge = false;
       req.on('data', (chunk) => {
+        if (tooLarge) return; // keep reading (discarding) so the browser receives the 413 instead of a reset connection
         bodyText += chunk;
         if (bodyText.length > 15 * 1024 * 1024) {
+          tooLarge = true;
+          bodyText = '';
+        }
+      });
+
+      req.on('end', async () => {
+        if (tooLarge) {
           res.statusCode = 413;
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({
             success: false,
             error: 'Image file too large. Please upload an image under 10MB.'
           }));
-          req.destroy();
+          return;
         }
-      });
-
-      req.on('end', async () => {
         try {
           const payload = bodyText ? JSON.parse(bodyText) : {};
           const { image, mimeType, crop = '', lang = 'en' } = payload;

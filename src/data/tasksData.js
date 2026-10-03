@@ -1,4 +1,5 @@
 import { byId } from './cropsData';
+import { ukey, currentUser } from '../services/authService';
 
 export const TASKS = [
   {
@@ -564,11 +565,12 @@ export function generateSuggestedTasks(dateStr, farm, weather) {
     .map(({ priority, ...task }) => task);
 }
 
-const STORAGE_KEY = 'fw.daily_tasks';
+const STORAGE_KEY = 'tasks'; // scoped per user: farmwise_user_<id>_tasks
 
 export function loadAllDailyTasks() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!currentUser()) return null;
+    const raw = localStorage.getItem(ukey(STORAGE_KEY));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
@@ -580,7 +582,8 @@ export function loadAllDailyTasks() {
 
 export function saveAllDailyTasks(data) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    if (!currentUser()) return;
+    localStorage.setItem(ukey(STORAGE_KEY), JSON.stringify(data));
   } catch (err) {
     console.error('Failed to save daily tasks to storage', err);
   }

@@ -5927,3 +5927,10 @@ dialog.plot-dlg { width: min(860px, calc(100vw - 24px)); }
 .map .leaflet-control-attribution { font-size: 10px; }
 .fm-label { background: rgba(17, 19, 16, .78); color: #fff; border: 0; border-radius: 8px; box-shadow: none; font: 600 12.5px var(--font); padding: 4px 9px; }
 .fm-label::before { display: none; }
+
+/* login: show/hide password inside the field */
+.inp .pw-toggle { min-height: 36px; margin-right: 6px; padding: 0 10px; font-size: 13.5px; color: var(--ink-2); }
+.pmenu { position: relative; }
+.pmenu .avatar { border: 0; cursor: pointer; font: inherit; font-weight: 600; }
+.pmenu-pop { left: auto; right: 0; width: 220px; }
+.pmenu-name { display: block; padding: 0 10px 10px; font-weight: 500; font-size: 15px; }

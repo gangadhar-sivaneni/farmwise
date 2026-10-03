@@ -3,13 +3,15 @@ import BrandMark from '../common/BrandMark';
 import Icon from '../common/Icon';
 import { useLanguage } from '../../context/LanguageContext';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import FarmSelector from '../farm/FarmSelector';
 import AddPlotModal from '../farm/AddPlotModal';
 import { TASKS, getTodayDateStr } from '../../data/tasksData';
 
 export default function AppSidebar({ currentPage }) {
   const { t, showToast, W } = useLanguage();
-  const { tasksDone, setSignedIn, getDailyTasks } = useApp();
+  const { tasksDone, getDailyTasks } = useApp();
+  const { logout } = useAuth();
 
   const todayTasks = getDailyTasks ? getDailyTasks(getTodayDateStr()) : TASKS;
   const unfinishedCount = todayTasks.filter((task) => !task.completed).length;
@@ -32,9 +34,8 @@ export default function AppSidebar({ currentPage }) {
   ];
 
   const handleLogout = () => {
-    setSignedIn(false);
-    window.location.hash = '#/';
     showToast(W.bye);
+    logout();
   };
 
   return (

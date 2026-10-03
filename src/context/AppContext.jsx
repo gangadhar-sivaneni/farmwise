@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useFarm } from './FarmContext';
+import { useAuth } from './AuthContext';
+import { ukey } from '../services/authService';
 import { toFarmView } from '../services/farmService';
 import { CROPS, byId, cropCost } from '../data/cropsData';
 import {
@@ -23,33 +25,25 @@ const AppContext = createContext();
 export function AppProvider({ children }) {
   const { showToast, W } = useLanguage();
 
-  const [signedIn, setSignedInState] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('fw.session')) || false;
-    } catch {
-      return false;
-    }
-  });
+  const { user, logout } = useAuth();
+  const signedIn = !!user;
+  // user-scoped storage; nothing is read or written while signed out
+  const load = (name, fallback) => {
+    if (!user) return fallback;
+    try { return JSON.parse(localStorage.getItem(ukey(name))) ?? fallback; } catch { return fallback; }
+  };
+  const store = (name, value) => {
+    if (!user) return;
+    try { localStorage.setItem(ukey(name), JSON.stringify(value)); } catch { /* storage full/blocked */ }
+  };
 
   // The selected plot drives the whole dashboard; `activeFarm` keeps the shape every page already reads.
   const { activePlot, activePlotId: farmKey, setActivePlotId } = useFarm();
   const activeFarm = useMemo(() => toFarmView(activePlot), [activePlot]);
 
-  const [tasksDone, setTasksDoneState] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('fw.tasks')) || {};
-    } catch {
-      return {};
-    }
-  });
+  const [tasksDone, setTasksDoneState] = useState(() => load('tasks_done', {}));
 
-  const [compareSel, setCompareSelState] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('fw.compare')) || ['maize', 'cotton'];
-    } catch {
-      return ['maize', 'cotton'];
-    }
-  });
+  const [compareSel, setCompareSelState] = useState(() => load('preferences_compare', ['maize', 'cotton']));
 
   const [showTray, setShowTray] = useState(false);
   const [activeCropModal, setActiveCropModal] = useState(null);
@@ -60,21 +54,14 @@ export function AppProvider({ children }) {
   }, [farmKey, activePlot?.crop]);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
 
-  const setSignedIn = useCallback((val) => {
-    setSignedInState(val);
-    try {
-      localStorage.setItem('fw.session', JSON.stringify(val));
-    } catch {}
-  }, []);
+  const setSignedIn = useCallback((val) => { if (!val) logout(); }, [logout]);
 
   const setFarmKey = setActivePlotId;
 
   const toggleTask = useCallback((taskId) => {
     setTasksDoneState((prev) => {
       const next = { ...prev, [taskId]: !prev[taskId] };
-      try {
-        localStorage.setItem('fw.tasks', JSON.stringify(next));
-      } catch {}
+      store('tasks_done', next);
       const doneCount = TASKS.filter((t) => next[t.id]).length;
       if (doneCount === TASKS.length && next[taskId]) {
         showToast(W.allDone);
@@ -116,9 +103,7 @@ export function AppProvider({ children }) {
       if (task) {
         setTasksDoneState((prev) => {
           const next = { ...prev, [taskId]: task.completed };
-          try {
-            localStorage.setItem('fw.tasks', JSON.stringify(next));
-          } catch {}
+          store('tasks_done', next);
           return next;
         });
       }
@@ -156,9 +141,7 @@ export function AppProvider({ children }) {
       } else {
         next = [...prev, cropId].slice(-2);
       }
-      try {
-        localStorage.setItem('fw.compare', JSON.stringify(next));
-      } catch {}
+      store('preferences_compare', next);
       setShowTray(next.length > 0);
       return next;
     });
@@ -167,19 +150,11 @@ export function AppProvider({ children }) {
   const setComparePair = useCallback((cropA, cropB) => {
     const next = [cropA, cropB];
     setCompareSelState(next);
-    try {
-      localStorage.setItem('fw.compare', JSON.stringify(next));
-    } catch {}
+    store('preferences_compare', next);
   }, []);
 
   // Scan Alerts State (AI Crop Scanner)
-  const [scanAlerts, setScanAlertsState] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('fw.scan_alerts')) || [];
-    } catch {
-      return [];
-    }
-  });
+  const [scanAlerts, setScanAlertsState] = useState(() => load('scan_alerts', []));
 
   const saveScanAlert = useCallback((alertItem) => {
     setScanAlertsState((prev) => {
@@ -190,9 +165,7 @@ export function AppProvider({ children }) {
         ...alertItem,
       };
       const next = [newAlert, ...prev.filter(a => a.id !== newAlert.id)].slice(0, 10);
-      try {
-        localStorage.setItem('fw.scan_alerts', JSON.stringify(next));
-      } catch {}
+      store('scan_alerts', next);
       return next;
     });
     showToast({
@@ -204,9 +177,7 @@ export function AppProvider({ children }) {
   const dismissScanAlert = useCallback((id) => {
     setScanAlertsState((prev) => {
       const next = prev.filter((a) => a.id !== id);
-      try {
-        localStorage.setItem('fw.scan_alerts', JSON.stringify(next));
-      } catch {}
+      store('scan_alerts', next);
       return next;
     });
   }, []);
@@ -368,6 +339,7 @@ export function AppProvider({ children }) {
     <AppContext.Provider
       value={{
         signedIn,
+        user,
         setSignedIn,
         farmKey,
         setFarmKey,

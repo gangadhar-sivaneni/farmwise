@@ -151,7 +151,7 @@ export default function AddPlotModal() {
     const source = useBoundary ? (fromFile ? 'uploaded' : 'drawn') : 'manual';
     const rec = withArea({
       ...base,
-      isDemo: base.isDemo && source === 'demo',
+      isDemo: false,
       name: f.name.trim(),
       location: { village: f.village.trim(), district: f.district.trim(), state: f.state.trim() },
       lat, lng, polygon, areaSource: source,

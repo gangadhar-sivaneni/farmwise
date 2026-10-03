@@ -35,6 +35,24 @@ export const FARMS = {
         te: 'వేడి, పొడి మధ్యాహ్నాలు తామర పురుగుకు అనుకూలం. ప్లాట్ Bలో ఆకులు ముడుచుకుంటున్నాయేమో చూడండి.'
       }
     }
+  },
+  c: {
+    name: { en: 'Hill View Farm · Nalgonda', te: 'కొండ వీక్షణ పొలం · నల్గొండ' },
+    loc: { en: 'Nalgonda district, Telangana', te: 'నల్గొండ జిల్లా, తెలంగాణ' },
+    coords: { lat: 17.0575, lon: 79.2671 },
+    temp: 30,
+    cond: { en: 'Sunny, light breeze', te: 'ఎండ, తేలికపాటి గాలి' },
+    plots: [
+      { crop: 'cotton', label: 'A', acres: 3.5, sown: '2026-07-12', fill: '#FF5A01', poly: '36,34 236,26 244,214 44,224' },
+      { crop: 'groundnut', label: 'B', acres: 1.5, sown: '2026-08-02', fill: '#CEE2E3', poly: '254,30 374,40 366,206 262,214' }
+    ],
+    alert: {
+      t: { en: 'Pink bollworm watch · Cotton', te: 'గులాబీ రంగు పురుగు నిఘా · పత్తి' },
+      b: {
+        en: 'Check flowers in Plot A for rosette (twisted) blooms — an early pink bollworm sign.',
+        te: 'ప్లాట్ Aలో పువ్వులు ముడుచుకుపోయాయేమో చూడండి — గులాబీ రంగు పురుగుకు ముందస్తు సంకేతం.'
+      }
+    }
   }
 };
 

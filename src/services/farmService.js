@@ -2,11 +2,13 @@
 // savePlot and deletePlot with calls to your backend (e.g. fetch(`${API_BASE}/plots`)) — the
 // FarmContext and UI only use these async functions, so nothing else needs to change.
 import { FARMS, daysSince } from '../data/farmsData';
+import { ukey, currentUser } from './authService';
 import { byId } from '../data/cropsData';
 import { areaFromSqm, SQM_PER_ACRE, toSvgPoints, centroidOf } from '../utils/geo';
 
-const PLOTS_KEY = 'fw.plots.v1';
-const ACTIVE_KEY = 'fw.farm'; // same key the old farm selector used, so the last selection carries over
+// Every key is scoped to the signed-in user (farmwise_user_<id>_plots …): accounts never share plots.
+const PLOTS = 'plots';
+const ACTIVE = 'active_plot';
 
 /**
  * Plot record (backend-ready shape):
@@ -16,11 +18,12 @@ const ACTIVE_KEY = 'fw.farm'; // same key the old farm selector used, so the las
  *   surveyNo, notes, documents: [{ name, type, size }], soilReport: { name, size, uploadedAt } | null,
  *   createdAt, updatedAt, isDemo }
  */
-const demoPlot = (id, farm) => {
+const demoPlot = (id, sample) => {
+  const farm = FARMS[sample];
   const acres = farm.plots.reduce((a, p) => a + p.acres, 0);
   const [district, state] = farm.loc.en.split(',').map((s) => s.trim());
   return {
-    id, isDemo: true, name: farm.name.en.split('·')[0].trim(),
+    id, sample, isDemo: true, name: farm.name.en.split('·')[0].trim(),
     location: { village: '', district: district.replace(/ district$/i, ''), state: state || 'Telangana' },
     lat: farm.coords.lat, lng: farm.coords.lon, polygon: null,
     areaSqm: acres * SQM_PER_ACRE, areaAcres: acres, areaHectares: (acres * SQM_PER_ACRE) / 10000, perimeterM: null,
@@ -31,17 +34,24 @@ const demoPlot = (id, farm) => {
 };
 
 const read = (k, fallback) => {
-  try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fallback; } catch { return fallback; }
+  if (!currentUser()) return fallback;
+  try { const v = JSON.parse(localStorage.getItem(ukey(k))); return v ?? fallback; } catch { return fallback; }
 };
-const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage full/blocked */ } };
+const write = (k, v) => {
+  if (!currentUser()) throw new Error('Sign in to save farm data');
+  try { localStorage.setItem(ukey(k), JSON.stringify(v)); } catch { /* storage full/blocked */ }
+};
 
-/** Synchronous first paint from the local cache (seeded with the two demo farms). */
+/** The signed-in user's plots. A new account starts with its own copy of one sample farm (none when signed out). */
 export function getCachedPlots() {
-  const saved = read(PLOTS_KEY, null);
-  return Array.isArray(saved) && saved.length ? saved : [demoPlot('a', FARMS.a), demoPlot('b', FARMS.b)];
+  const user = currentUser();
+  if (!user) return [];
+  const saved = read(PLOTS, null);
+  return Array.isArray(saved) && saved.length ? saved : [demoPlot(`${user.id}-sample`, user.sample)];
 }
-export const getCachedActiveId = () => read(ACTIVE_KEY, 'a');
-export const saveActiveId = (id) => write(ACTIVE_KEY, id);
+export const getCachedActiveId = () => read(ACTIVE, null);
+export const saveActiveId = (id) => write(ACTIVE, id);
+export const resetPlots = () => { localStorage.removeItem(ukey(PLOTS)); };
 
 export async function listPlots() {
   return getCachedPlots();
@@ -51,12 +61,12 @@ export async function savePlot(plot) {
   const plots = getCachedPlots();
   const rec = { ...plot, id: plot.id || `plot-${Date.now().toString(36)}`, updatedAt: now, createdAt: plot.createdAt || now };
   const next = plots.some((p) => p.id === rec.id) ? plots.map((p) => (p.id === rec.id ? rec : p)) : [...plots, rec];
-  write(PLOTS_KEY, next);
+  write(PLOTS, next);
   return rec;
 }
 export async function deletePlot(id) {
   const next = getCachedPlots().filter((p) => p.id !== id);
-  write(PLOTS_KEY, next);
+  write(PLOTS, next);
   return next;
 }
 
@@ -83,7 +93,7 @@ const CROP_FILL = { rice: '#F2D22E', cotton: '#FF5A01', maize: '#F2D22E', chilli
 export function toFarmView(plot) {
   if (!plot) return null;
   const loc = [plot.location?.village, plot.location?.district, plot.location?.state].filter(Boolean).join(', ') || 'Location not set';
-  const demo = plot.isDemo && plot.areaSource === 'demo' ? FARMS[plot.id] : null;
+  const demo = plot.isDemo && plot.areaSource === 'demo' ? FARMS[plot.sample] : null;
   const crop = byId(plot.crop);
   const subPlots = demo
     ? demo.plots
@@ -95,8 +105,8 @@ export function toFarmView(plot) {
   return {
     id: plot.id,
     // demo farms keep their Telugu name until the farmer renames them
-    name: plot.isDemo && FARMS[plot.id] && plot.name === FARMS[plot.id].name.en.split('·')[0].trim()
-      ? { en: plot.name, te: FARMS[plot.id].name.te.split('·')[0].trim() }
+    name: plot.isDemo && FARMS[plot.sample] && plot.name === FARMS[plot.sample].name.en.split('·')[0].trim()
+      ? { en: plot.name, te: FARMS[plot.sample].name.te.split('·')[0].trim() }
       : { en: plot.name, te: plot.name },
     loc: { en: loc, te: loc },
     coords: { lat: plot.lat, lon: plot.lng },

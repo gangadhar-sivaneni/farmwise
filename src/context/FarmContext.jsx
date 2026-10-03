@@ -29,8 +29,8 @@ export function FarmProvider({ children }) {
   const removePlot = useCallback(async (id) => {
     const remaining = await farmService.deletePlot(id);
     if (!remaining.length) {
-      // never leave the dashboard without a plot: fall back to the demo farms
-      localStorage.removeItem('fw.plots.v1');
+      // never leave the dashboard without a plot: fall back to this user's sample farm
+      farmService.resetPlots();
       const seeded = await farmService.listPlots();
       setPlots(seeded);
       setActivePlotId(seeded[0].id);

@@ -4,6 +4,7 @@ import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import AppShellPage from './pages/AppShellPage';
 import { useApp } from './context/AppContext';
+import { currentUser } from './services/authService';
 
 export default function App() {
   const { signedIn } = useApp();
@@ -16,7 +17,8 @@ export default function App() {
     const handleHashChange = () => {
       const hash = window.location.hash || '#/';
       // Check auth for protected routes
-      if (hash.startsWith('#/app') && !signedIn) {
+      // read the auth service directly: it updates synchronously on login/logout
+      if (hash.startsWith('#/app') && !currentUser()) {
         window.location.replace('#/login');
         return;
       }
@@ -49,8 +51,8 @@ export default function App() {
 
   // Determine which page to render based on currentRoute
   let pageContent = null;
-  if (currentRoute === '#/login') {
-    pageContent = <LoginPage />;
+  if (currentRoute === '#/login' || (currentRoute.startsWith('#/app') && !signedIn)) {
+    pageContent = <LoginPage />; // the dashboard never renders without a signed-in user
   } else if (currentRoute.startsWith('#/app')) {
     const parts = currentRoute.replace('#/app/', '').split('/');
     const subpage = parts[0] || 'overview';

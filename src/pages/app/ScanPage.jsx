@@ -5,6 +5,24 @@ import { useApp } from '../../context/AppContext';
 import { CROPS } from '../../data/cropsData';
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB limit
+// Phone photos are 4–12 MB; the model needs far less. Shrink before upload so it is fast and never hits the size limit.
+const MAX_SIDE = 1600;
+function shrinkPhoto(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * k);
+      c.height = Math.round(img.naturalHeight * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      resolve({ dataUrl: c.toDataURL('image/jpeg', 0.85), mimeType: 'image/jpeg' });
+    };
+    img.onerror = () => resolve(null); // e.g. HEIC the browser cannot decode: send the original
+    img.src = dataUrl;
+  });
+}
+
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
 export default function ScanPage() {
@@ -116,13 +134,14 @@ export default function ScanPage() {
     }
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const dataUrl = e.target.result;
+      const small = await shrinkPhoto(dataUrl);
       setPhotoSrc(dataUrl);
-      setPhotoBase64(dataUrl);
+      setPhotoBase64(small?.dataUrl || dataUrl);
       setPhotoName(file.name);
       setPhotoSize(file.size);
-      setPhotoMimeType(file.type || 'image/jpeg');
+      setPhotoMimeType(small?.mimeType || file.type || 'image/jpeg');
       setScanState('ready');
       setAnalysisResult(null);
       setSavedToAlerts(false);
@@ -218,7 +237,7 @@ export default function ScanPage() {
         }),
       });
 
-      const json = await response.json();
+      const json = await response.json().catch(() => ({ error: `Server error (${response.status}). Please try again.` }));
 
       if (json.success && json.data) {
         setAnalysisResult(json.data);
@@ -229,7 +248,10 @@ export default function ScanPage() {
     } catch (err) {
       console.error('Real-time scan analysis failed:', err);
       setScanState('ready');
-      setUploadError(err.message || 'Real-time analysis failed. Please check your photo and try again.');
+      // fetch() throws TypeError ("Failed to fetch") only when the FarmWise server cannot be reached at all
+      setUploadError(err instanceof TypeError
+        ? L({ en: 'Cannot reach the FarmWise server. Check that it is running (npm run dev) and your internet is on, then try again.', te: 'FarmWise సర్వర్‌ను చేరుకోలేకపోయాం. అది నడుస్తోందో (npm run dev), ఇంటర్నెట్ ఉందో చూసి మళ్లీ ప్రయత్నించండి.' })
+        : err.message || 'Real-time analysis failed. Please check your photo and try again.');
     }
   };
 

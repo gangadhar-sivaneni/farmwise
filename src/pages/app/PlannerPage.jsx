@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Icon from '../../components/common/Icon';
 import { useLanguage } from '../../context/LanguageContext';
 import { useApp } from '../../context/AppContext';
+import { ukey } from '../../services/authService';
 import { CROPS, byId, fmt, inr } from '../../data/cropsData';
 import { useMandiPrices, stateName } from '../../hooks/useMandiPrices';
 
@@ -40,7 +41,7 @@ export default function PlannerPage() {
 
   const [savedPlans, setSavedPlans] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('fw.plans')) || [];
+      return JSON.parse(localStorage.getItem(ukey('plans'))) || [];
     } catch {
       return [];
     }
@@ -105,7 +106,7 @@ export default function PlannerPage() {
     const updated = [newPlan, ...savedPlans].slice(0, 5);
     setSavedPlans(updated);
     try {
-      localStorage.setItem('fw.plans', JSON.stringify(updated));
+      localStorage.setItem(ukey('plans'), JSON.stringify(updated));
       showToast(W.savedOk);
     } catch {
       showToast(W.saveFail);
@@ -125,7 +126,7 @@ export default function PlannerPage() {
     const updated = savedPlans.filter((_, i) => i !== index);
     setSavedPlans(updated);
     try {
-      localStorage.setItem('fw.plans', JSON.stringify(updated));
+      localStorage.setItem(ukey('plans'), JSON.stringify(updated));
     } catch {}
   };
 

@@ -10,6 +10,7 @@ import { useMandiPrices, livePriceOf } from '../../hooks/useMandiPrices';
 import { generateFarmerTips, generateDayInsights } from '../../services/weatherService';
 import { SOURCE_LABEL } from '../../services/farmService';
 import { useFarm } from '../../context/FarmContext';
+import { useAuth } from '../../context/AuthContext';
 
 // Leaflet loads with the overview card, not the whole app
 const FieldMap = lazy(() => import('../../components/farm/FieldMap'));
@@ -28,6 +29,7 @@ const seasonLabel = (d = new Date()) => {
 
 export default function OverviewPage() {
   const { openPlotEditor } = useFarm();
+  const { user } = useAuth();
   const { t, L, loc, W, lang } = useLanguage();
   const {
     activeFarm,
@@ -146,7 +148,7 @@ export default function OverviewPage() {
       <div className="page-h">
         <div>
           <h1>
-            <span>{greetWord}</span>, <span>{t('name', 'Gangadhar')}</span>.
+            <span>{greetWord}</span>, <span>{user?.name}</span>.
           </h1>
           <p id="farmSummary">
             {`${L(activeFarm.name)} · ${L(locationInfo?.isLiveGPS && locationInfo?.name ? locationInfo.name : activeFarm.loc)} · ${L(seasonLabel())}`}
