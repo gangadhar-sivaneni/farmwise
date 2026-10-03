@@ -6,12 +6,12 @@ import {
   CROPS,
   byId,
   cropCost,
-  cropProfit,
   WATER_N,
   IMG,
   inr,
 } from '../../data/cropsData';
 import { LBL } from '../../data/translations';
+import { useMandiPrices, livePriceOf } from '../../hooks/useMandiPrices';
 
 export default function CropsPage() {
   const { t, L, W } = useLanguage();
@@ -21,6 +21,10 @@ export default function CropsPage() {
     setComparePair,
     setActiveCropModal,
   } = useApp();
+
+  const { data: mandi } = useMandiPrices();
+  const priceOf = (c) => livePriceOf(c, mandi);
+  const cropProfit = (c) => c.yield * priceOf(c) - cropCost(c);
 
   const [filters, setFilters] = useState({
     season: 'all',
@@ -235,7 +239,7 @@ export default function CropsPage() {
                   </div>
                   <div>
                     <span>{L(W.revAcre)}</span>
-                    <b>{inr(c.yield * c.price)}</b>
+                    <b>{inr(c.yield * priceOf(c))}</b>
                   </div>
                 </div>
 

@@ -186,3 +186,24 @@ export const FERTILIZERS = [
     crops: ['cotton'], cropsOther: { en: 'Tomato, Mango', te: 'టమాటా, మామిడి' },
   },
 ];
+
+// Telugu for each dose string above (keyed by the English text)
+export const DOSE_TE = {
+  '50–100 kg per acre': 'ఎకరానికి 50–100 కిలోలు',
+  '45–90 kg per acre': 'ఎకరానికి 45–90 కిలోలు',
+  '40–60 kg per acre': 'ఎకరానికి 40–60 కిలోలు',
+  '5–10 g per litre': 'లీటరుకు 5–10 గ్రాములు',
+  '5–10 ml per litre (spray) · 10–15 L per acre (drip)': 'లీటరుకు 5–10 మి.లీ. (పిచికారీ) · ఎకరానికి 10–15 లీటర్లు (డ్రిప్)',
+  '200–300 kg per acre': 'ఎకరానికి 200–300 కిలోలు',
+  '200 kg per acre (groundnut, at pegging)': 'ఎకరానికి 200 కిలోలు (వేరుశనగ, ఊడల దశలో)',
+  '10 g per litre (1% spray)': 'లీటరుకు 10 గ్రాములు (1% పిచికారీ)',
+  '10 kg per acre (basal) · 5 g per litre (spray)': 'ఎకరానికి 10 కిలోలు (దుక్కిలో) · లీటరుకు 5 గ్రాములు (పిచికారీ)',
+  '12–14 g per acre': 'ఎకరానికి 12–14 గ్రాములు',
+  '20–40 g per acre': 'ఎకరానికి 20–40 గ్రాములు',
+  '160–320 g per acre': 'ఎకరానికి 160–320 గ్రాములు',
+  '0.75 ml per litre · 180–240 ml per acre (tomato)': 'లీటరుకు 0.75 మి.లీ. · ఎకరానికి 180–240 మి.లీ. (టమాటా)',
+  '1–2 g per litre (cereals, pulses) · 2–3 g per litre (vegetables)': 'లీటరుకు 1–2 గ్రాములు (ధాన్యాలు, పప్పుధాన్యాలు) · లీటరుకు 2–3 గ్రాములు (కూరగాయలు)',
+  '3–5 ml per litre': 'లీటరుకు 3–5 మి.లీ.',
+  '4–5 g per kg seed · 2 kg per acre with FYM': 'కిలో విత్తనానికి 4–5 గ్రాములు · పశువుల ఎరువుతో ఎకరానికి 2 కిలోలు',
+  '90–180 ml per acre (cotton)': 'ఎకరానికి 90–180 మి.లీ. (పత్తి)',
+};

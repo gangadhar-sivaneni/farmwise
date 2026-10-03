@@ -14,7 +14,7 @@ export default function SoilMetricCard({ param, value, lang }) {
   return (
     <div className="nut">
       <div className="nm">
-        {param.label}
+        {lang === 'te' ? param.te : param.label}
         <small>{value} {param.unit}</small>
       </div>
       <div

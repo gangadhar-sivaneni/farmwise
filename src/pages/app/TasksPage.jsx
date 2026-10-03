@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import Icon from '../../components/common/Icon';
+import { CROPS } from '../../data/cropsData';
 import { useLanguage } from '../../context/LanguageContext';
 import { useApp } from '../../context/AppContext';
 import {
@@ -13,6 +14,12 @@ import {
 
 export default function TasksPage() {
   const { t, L, loc, W, lang } = useLanguage();
+  // Stored task metadata is English; show it in the chosen language
+  const timeLabel = (id) => L(TIME_SLOTS.find((s) => s.id === id)?.label) || id || L({ en: 'Anytime', te: 'ఎప్పుడైనా' });
+  const durationLabel = (d) => (lang === 'te' ? d.replaceAll(' min', ' నిమి.').replaceAll(' hrs', ' గం.').replaceAll(' hr', ' గం.') : d);
+  const fieldLabel = (f) => (lang === 'te'
+    ? CROPS.reduce((acc, c) => acc.replaceAll(c.name.en, c.name.te), f.replaceAll('Plot ', 'ప్లాట్ '))
+    : f);
   const {
     weatherData,
     weatherLoading,
@@ -614,14 +621,14 @@ export default function TasksPage() {
                       <div className="fw-task-meta">
                         {/* Time & Duration Pill */}
                         <span className="pill when fw-time-pill">
-                          {`${task.timeOfDay || 'Anytime'} · ${task.duration || '20 min'}`}
+                          {`${timeLabel(task.timeOfDay)} · ${durationLabel(task.duration || '20 min')}`}
                         </span>
 
                         {/* Category Pill */}
                         <span className="pill fw-cat-pill">
                           {L(cat.label)}
                         </span>
-                        {task.field && <span className="pill fw-field-pill">{task.field}</span>}
+                        {task.field && <span className="pill fw-field-pill">{fieldLabel(task.field)}</span>}
                         {isOverdue && (
                           <span className="fw-task-badge fw-badge-overdue">
                             {t('today.overdue', 'Overdue')}

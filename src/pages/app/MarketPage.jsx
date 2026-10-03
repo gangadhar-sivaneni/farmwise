@@ -1,50 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Icon from '../../components/common/Icon';
 import { useLanguage } from '../../context/LanguageContext';
 import { SHOPS } from '../../data/marketData';
-import { FERTILIZERS } from '../../data/fertilizerData';
+import { FERTILIZERS, DOSE_TE } from '../../data/fertilizerData';
 import { byId, IMG, inr } from '../../data/cropsData';
-
-const PRICES_URL = '/api/markets/prices'; // served by server/mandi.js inside `npm run dev`
-const REFRESH_MS = 5 * 60 * 60 * 1000;
-const CACHE_KEY = 'fw.mandi.v2';
-const CROP_ORDER = ['rice', 'cotton', 'maize', 'chilli', 'turmeric', 'groundnut'];
-
-const readCache = () => {
-  try { return JSON.parse(localStorage.getItem(CACHE_KEY)); } catch { return null; }
-};
-
-/** Agmarknet prices, re-fetched every 5 hours (and when a tab left open passes that mark). */
-function useMandiPrices() {
-  const [data, setData] = useState(readCache);
-  const [state, setState] = useState('idle'); // idle | loading | error
-
-  const load = useCallback(async () => {
-    setState('loading');
-    try {
-      const res = await fetch(PRICES_URL, { headers: { Accept: 'application/json' } });
-      if (!res.ok || !res.headers.get('content-type')?.includes('json')) throw new Error(res.status);
-      const json = await res.json();
-      const next = { ...json, fetchedAt: Date.now() };
-      setData(next);
-      try { localStorage.setItem(CACHE_KEY, JSON.stringify(next)); } catch {}
-      setState('idle');
-    } catch {
-      setState('error'); // keep showing the last prices we had
-    }
-  }, []);
-
-  useEffect(() => {
-    const stale = () => { const c = readCache(); return !c || Date.now() - c.fetchedAt > REFRESH_MS; };
-    if (stale()) load();
-    const timer = setInterval(load, REFRESH_MS);
-    const onShow = () => document.visibilityState === 'visible' && stale() && load();
-    document.addEventListener('visibilitychange', onShow);
-    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', onShow); };
-  }, [load]);
-
-  return { data, state, reload: load };
-}
+import { useMandiPrices, CROP_ORDER, stateName } from '../../hooks/useMandiPrices';
 
 function Sparkline({ values, change }) {
   values = values.filter(Number.isFinite);
@@ -63,7 +23,7 @@ function Sparkline({ values, change }) {
 }
 
 export default function MarketPage() {
-  const { t, L, loc, W, showToast } = useLanguage();
+  const { t, L, loc, W, showToast, lang } = useLanguage();
   const [shopFilter, setShopFilter] = useState('all');
   const [fertFilter, setFertFilter] = useState('all');
   const { data, state, reload } = useMandiPrices();
@@ -123,7 +83,7 @@ export default function MarketPage() {
                             <img src={IMG(c.img, 80)} alt="" />
                             <div>
                               <b>{L(c.name)}</b>
-                              <span>{r.state} · {fmt(r.date, { day: 'numeric', month: 'short' })}{r.msp ? ` · MSP ${inr(r.msp)}` : ''}</span>
+                              <span>{stateName(r.state, lang)} · {fmt(r.date, { day: 'numeric', month: 'short' })}{r.msp ? ` · ${L({ en: 'MSP', te: 'కనీస మద్దతు ధర' })} ${inr(r.msp)}` : ''}</span>
                             </div>
                           </div>
                         </td>
@@ -174,12 +134,12 @@ export default function MarketPage() {
                   <span className="muted" style={{ fontSize: 13 }}>{L(f.tag)}</span>
                   <p style={{ fontSize: 14, color: 'var(--ink-2)' }}>{L(f.desc)}</p>
                   <div className="kv">
-                    <div><span>{L({ en: 'Dose', te: 'మోతాదు' })}</span><b>{f.dose}</b></div>
+                    <div><span>{L({ en: 'Dose', te: 'మోతాదు' })}</span><b>{L({ en: f.dose, te: DOSE_TE[f.dose] || f.dose })}</b></div>
                     <div><span>{L({ en: 'Method', te: 'విధానం' })}</span><b>{L(f.method)}</b></div>
                   </div>
                   {f.credit && (
                     <a className="muted" style={{ fontSize: 11.5 }} href={f.credit.url} target="_blank" rel="noreferrer">
-                      Photo: {f.credit.by} · {f.credit.lic} · Wikimedia Commons
+                      {L({ en: 'Photo', te: 'ఫోటో' })}: {f.credit.by} · {f.credit.lic} · Wikimedia Commons
                     </a>
                   )}
                   <span className="muted" style={{ fontSize: 13 }}>

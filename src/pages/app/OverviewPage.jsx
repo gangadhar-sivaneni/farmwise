@@ -6,6 +6,20 @@ import { byId, cropCost, fmt, IMG } from '../../data/cropsData';
 import { FORECAST } from '../../data/weatherData';
 import { TASKS, getTodayDateStr } from '../../data/tasksData';
 import { STAGES } from '../../data/translations';
+import { useMandiPrices, livePriceOf } from '../../hooks/useMandiPrices';
+import { generateFarmerTips } from '../../services/weatherService';
+
+// Growth stage from how far through its season the crop is (0 Sowing … 4 Harvest)
+const stageOf = (pct) => (pct < 10 ? 0 : pct < 45 ? 1 : pct < 75 ? 2 : pct < 100 ? 3 : 4);
+
+// Indian cropping season from today's date: Kharif Jun–Oct, Rabi Nov–Mar, Zaid (summer) Apr–May
+const seasonLabel = (d = new Date()) => {
+  const m = d.getMonth() + 1, y = d.getFullYear();
+  if (m >= 6 && m <= 10) return { en: `Kharif ${y}`, te: `ఖరీఫ్ ${y}` };
+  if (m >= 11) return { en: `Rabi ${y}–${String(y + 1).slice(2)}`, te: `రబీ ${y}–${String(y + 1).slice(2)}` };
+  if (m <= 3) return { en: `Rabi ${y - 1}–${String(y).slice(2)}`, te: `రబీ ${y - 1}–${String(y).slice(2)}` };
+  return { en: `Zaid (summer) ${y}`, te: `వేసవి పంట ${y}` };
+};
 
 export default function OverviewPage() {
   const { t, L, loc, W, lang } = useLanguage();
@@ -21,6 +35,7 @@ export default function OverviewPage() {
     locationInfo
   } = useApp();
 
+  const { data: mandi } = useMandiPrices();
   const todayStr = getTodayDateStr();
   const todayTasksList = getDailyTasks ? getDailyTasks(todayStr) : TASKS;
 
@@ -40,12 +55,12 @@ export default function OverviewPage() {
       const c = byId(p.crop);
       if (c) {
         cost += cropCost(c) * p.acres;
-        rev += c.yield * c.price * p.acres;
+        rev += c.yield * livePriceOf(c, mandi) * p.acres;
         acres += p.acres;
       }
     });
     return { cost, rev, profit: rev - cost, acres };
-  }, [activeFarm]);
+  }, [activeFarm, mandi]);
 
   // KPI Animated values
   const [displayVals, setDisplayVals] = useState({
@@ -110,6 +125,7 @@ export default function OverviewPage() {
   );
 
   const doneCount = todayTasksList.filter((t) => t.completed).length;
+  const fieldAlert = (weatherData?.current && generateFarmerTips(weatherData.current)[1]) || { t: activeFarm.alert.t, d: activeFarm.alert.b };
 
   return (
     <section className="panel page" data-page="overview" style={{ display: 'block' }}>
@@ -119,7 +135,7 @@ export default function OverviewPage() {
             <span>{greetWord}</span>, <span>{t('name', 'Gangadhar')}</span>.
           </h1>
           <p id="farmSummary">
-            {`${L(locationInfo?.isLiveGPS && locationInfo?.name ? locationInfo.name : activeFarm.loc)} · ${L({ en: 'Kharif 2026', te: 'ఖరీఫ్ 2026' })}`}
+            {`${L(locationInfo?.isLiveGPS && locationInfo?.name ? locationInfo.name : activeFarm.loc)} · ${L(seasonLabel())}`}
           </p>
         </div>
         <span className="muted" id="todayDate">
@@ -311,9 +327,9 @@ export default function OverviewPage() {
           <div className="alert" role="status">
             <div className="h">
               <Icon name="alert" className="ico" />
-              <span id="alertTitle">{L(activeFarm.alert.t)}</span>
+              <span id="alertTitle">{L(fieldAlert.t)}</span>
             </div>
-            <p id="alertBody">{L(activeFarm.alert.b)}</p>
+            <p id="alertBody">{L(fieldAlert.d)}</p>
             <a className="btn sm" href="#/app/scan">
               <Icon name="scan" className="ico sm" />
               <span>{t('dash.scanNow', 'Scan a leaf')}</span>
@@ -364,7 +380,7 @@ export default function OverviewPage() {
               const c = byId(p.crop);
               if (!c) return null;
               const total = Math.round((c.dur[0] + c.dur[1]) / 2);
-              const pct = Math.round((p.day / total) * 100);
+              const pct = Math.min(100, Math.round((p.day / total) * 100));
               return (
                 <div key={i} className="cprog">
                   <img src={IMG(c.img, 120)} alt="" />
@@ -374,7 +390,7 @@ export default function OverviewPage() {
                         {L(c.name)} · {L(W.plot)} {p.label}
                       </b>
                       <span>
-                        {STAGES[lang][p.stage]} · {pct}%
+                        {STAGES[lang][stageOf(pct)]} · {pct}%
                       </span>
                     </div>
                     {segs(pct)}

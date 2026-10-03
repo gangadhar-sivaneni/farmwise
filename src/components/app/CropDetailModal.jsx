@@ -3,6 +3,7 @@ import Icon from '../common/Icon';
 import { useLanguage } from '../../context/LanguageContext';
 import { useApp } from '../../context/AppContext';
 import { byId, cropCost, IMG, inr } from '../../data/cropsData';
+import { useMandiPrices, livePriceOf } from '../../hooks/useMandiPrices';
 import { LBL } from '../../data/translations';
 
 export default function CropDetailModal() {
@@ -14,6 +15,7 @@ export default function CropDetailModal() {
     compareSel,
     toggleCompare,
   } = useApp();
+  const { data: mandi } = useMandiPrices();
 
   const dialogRef = useRef(null);
   const crop = activeCropModal ? byId(activeCropModal) : null;
@@ -32,7 +34,7 @@ export default function CropDetailModal() {
   if (!crop) return <dialog ref={dialogRef} className="dlg" id="cropDlg" />;
 
   const cost = cropCost(crop);
-  const rev = crop.yield * crop.price;
+  const rev = crop.yield * livePriceOf(crop, mandi);
 
   const handleClose = () => {
     setActiveCropModal(null);

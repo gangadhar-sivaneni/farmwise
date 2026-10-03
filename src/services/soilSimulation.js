@@ -3,7 +3,7 @@
 // give the same values. "Refresh Sample" just bumps the sample number.
 // Rating bands follow the low/medium/high bands commonly used on Indian Soil Health Cards.
 
-export const DEMO_LOCATION = { latitude: 17.9689, longitude: 79.5941, label: 'Demo location · Warangal, Telangana' };
+export const DEMO_LOCATION = { latitude: 17.9689, longitude: 79.5941, label: { en: 'Demo location · Warangal, Telangana', te: 'డెమో స్థానం · వరంగల్, తెలంగాణ' } };
 
 // FNV-1a hash -> 32-bit seed
 function seedFrom(str) {
@@ -26,19 +26,21 @@ const round = (v, d) => Math.round(v * 10 ** d) / 10 ** d;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 export const TEXTURES = ['Sandy loam', 'Loam', 'Clay loam', 'Clay', 'Red sandy loam', 'Black clay (Vertisol)'];
+export const TEXTURE_TE = { 'Sandy loam': 'ఇసుక ఒండ్రు నేల', Loam: 'ఒండ్రు నేల', 'Clay loam': 'బంక ఒండ్రు నేల', Clay: 'బంకమట్టి', 'Red sandy loam': 'ఎర్ర ఇసుక ఒండ్రు నేల', 'Black clay (Vertisol)': 'నల్లరేగడి నేల' };
+export const FERTILITY_TE = { Low: 'తక్కువ', Medium: 'మధ్యస్థం', High: 'ఎక్కువ' };
 
 // key, label, unit, [low|medium boundary, medium|high boundary], bar max, decimals
 export const PARAMS = [
-  { k: 'oc', label: 'Organic Carbon', unit: '%', bands: [0.5, 0.75], max: 1.5, d: 2 },
-  { k: 'n', label: 'Nitrogen (N)', unit: 'kg/ha', bands: [280, 560], max: 700, d: 0 },
-  { k: 'p', label: 'Phosphorus (P)', unit: 'kg/ha', bands: [10, 25], max: 40, d: 1 },
-  { k: 'k', label: 'Potassium (K)', unit: 'kg/ha', bands: [110, 280], max: 450, d: 0 },
-  { k: 's', label: 'Sulphur (S)', unit: 'mg/kg', bands: [10, 20], max: 35, d: 1 },
-  { k: 'zn', label: 'Zinc (Zn)', unit: 'mg/kg', bands: [0.6, 1.2], max: 2.5, d: 2 },
-  { k: 'fe', label: 'Iron (Fe)', unit: 'mg/kg', bands: [4.5, 9], max: 20, d: 1 },
-  { k: 'mn', label: 'Manganese (Mn)', unit: 'mg/kg', bands: [2, 4], max: 12, d: 1 },
-  { k: 'cu', label: 'Copper (Cu)', unit: 'mg/kg', bands: [0.2, 0.4], max: 2, d: 2 },
-  { k: 'b', label: 'Boron (B)', unit: 'mg/kg', bands: [0.5, 1], max: 2, d: 2 },
+  { k: 'oc', label: 'Organic Carbon', te: 'సేంద్రియ కార్బన్', unit: '%', bands: [0.5, 0.75], max: 1.5, d: 2 },
+  { k: 'n', label: 'Nitrogen (N)', te: 'నత్రజని (N)', unit: 'kg/ha', bands: [280, 560], max: 700, d: 0 },
+  { k: 'p', label: 'Phosphorus (P)', te: 'భాస్వరం (P)', unit: 'kg/ha', bands: [10, 25], max: 40, d: 1 },
+  { k: 'k', label: 'Potassium (K)', te: 'పొటాషియం (K)', unit: 'kg/ha', bands: [110, 280], max: 450, d: 0 },
+  { k: 's', label: 'Sulphur (S)', te: 'గంధకం (S)', unit: 'mg/kg', bands: [10, 20], max: 35, d: 1 },
+  { k: 'zn', label: 'Zinc (Zn)', te: 'జింక్ (Zn)', unit: 'mg/kg', bands: [0.6, 1.2], max: 2.5, d: 2 },
+  { k: 'fe', label: 'Iron (Fe)', te: 'ఇనుము (Fe)', unit: 'mg/kg', bands: [4.5, 9], max: 20, d: 1 },
+  { k: 'mn', label: 'Manganese (Mn)', te: 'మాంగనీస్ (Mn)', unit: 'mg/kg', bands: [2, 4], max: 12, d: 1 },
+  { k: 'cu', label: 'Copper (Cu)', te: 'రాగి (Cu)', unit: 'mg/kg', bands: [0.2, 0.4], max: 2, d: 2 },
+  { k: 'b', label: 'Boron (B)', te: 'బోరాన్ (B)', unit: 'mg/kg', bands: [0.5, 1], max: 2, d: 2 },
 ];
 
 export const levelOf = (v, [lo, hi]) => (v < lo ? 'low' : v <= hi ? 'medium' : 'high');

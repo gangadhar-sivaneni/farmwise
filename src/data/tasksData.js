@@ -411,7 +411,7 @@ export function generateSuggestedTasks(dateStr, farm, weather) {
     addSuggestion('alert-scout', {
       title: {
         en: `Scout ${cropName.toLowerCase()} for the farm alert`,
-        te: `${cropName} పంటలో పొలం హెచ్చరిక లక్షణాలను పరిశీలించండి`,
+        te: `${(alertCrop && byId(alertCrop)?.name?.te) || 'పంట'}లో పొలం హెచ్చరిక లక్షణాలను పరిశీలించండి`,
       },
       desc: {
         en: `${alertText.en} Repeat this scouting check on spaced days while the alert remains active, and note any changes.`,
@@ -529,16 +529,26 @@ export function generateSuggestedTasks(dateStr, farm, weather) {
       chilli: 'flowers or fruit',
       turmeric: 'leaves or rhizomes',
     }[crop.id] || 'flowers or developing produce';
+    const partTe = {
+      rice: 'పిలకలు లేదా కంకులు',
+      maize: 'పూత కుచ్చులు, పీచు లేదా కండెలు',
+      cotton: 'మొగ్గలు, పూలు లేదా కాయలు',
+      groundnut: 'ఊడలు లేదా కాయలు',
+      chilli: 'పూలు లేదా కాయలు',
+      turmeric: 'ఆకులు లేదా దుంపలు',
+    }[crop.id] || 'పూలు లేదా పెరుగుతున్న పంట';
+    const pestsTe = crop.pests?.te?.join(', ') || 'సాధారణ పంట పురుగులు';
+    const fillTe = (text) => text.replace('{pests}', pestsTe).replaceAll('{part}', partTe);
 
     lifecycleActivities[stage.id].forEach(([title, titleTe, description], index) => {
       addSuggestion(`plot-${plot.label}-${stage.id}-${index + 1}`, {
         title: {
           en: `${cropName}: ${title.replaceAll('{part}', part)}`,
-          te: `${crop.name.te}: ${titleTe}`,
+          te: `${crop.name.te}: ${fillTe(titleTe)}`,
         },
         desc: {
           en: description.replace('{pests}', pests).replaceAll('{part}', part),
-          te: `ప్లాట్ ${plot.label}: ${lifecycleActivities[stage.id][index][1]}`,
+          te: `ప్లాట్ ${plot.label}: ${fillTe(titleTe)}`,
         },
         field: plotName,
         timeOfDay: index === 2 ? 'Afternoon' : 'Morning',
@@ -683,6 +693,13 @@ export function getTasksForDate(dateStr, farm, weather) {
       record.suggestions.push(...additionalTasks.slice(0, missingCount));
     }
   }
+
+  // Saved suggestions keep their status/edits (record.changes) but take fresh wording, so text fixes reach saved days.
+  const freshText = new Map(generateSuggestedTasks(dateStr, farm, weather).map((task) => [task.id, task]));
+  record.suggestions = record.suggestions.map((task) => {
+    const fresh = freshText.get(task.id);
+    return fresh ? { ...task, title: fresh.title, desc: fresh.desc, field: fresh.field } : task;
+  });
 
   const existingTitles = new Set(record.added.map((task) => {
     const title = typeof task.title === 'object' ? task.title.en : task.title;

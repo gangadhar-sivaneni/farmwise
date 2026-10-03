@@ -2,7 +2,7 @@ import React from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 
 export default function StatsStrip() {
-  const { t } = useLanguage();
+  const { t, L } = useLanguage();
 
   return (
     <section className="wrap" aria-label="What you get">
@@ -31,7 +31,7 @@ export default function StatsStrip() {
             <span className="pill ok">67%</span>
           </div>
           <span className="n">
-            Day 74 <span style={{ color: 'var(--ink-3)' }}>/ 110</span>
+            {L({ en: 'Day 74', te: '74వ రోజు' })} <span style={{ color: 'var(--ink-3)' }}>/ 110</span>
           </span>
           <div className="segs">
             <i className="on" style={{ animationDelay: '.1s' }} />

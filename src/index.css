@@ -3663,10 +3663,14 @@ svg.spark {
   color: #D6EEEE;
 }
 
-.btn:focus-visible, .icon-btn:focus-visible, input:focus-visible, select:focus-visible {
+.btn:focus-visible, .icon-btn:focus-visible {
   outline: 2px solid var(--orange);
   outline-offset: 2px;
 }
+
+/* Text fields & dropdowns: subtle ink focus (from .inp:focus-within) instead of the orange ring */
+.inp input:focus-visible, select:focus-visible, input[type="text"]:focus-visible, input[type="number"]:focus-visible, input[type="tel"]:focus-visible { outline: none; }
+select:focus-visible { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(17, 19, 16, .08); }
 
 /* =========================================================
    SCAN RESULT QUICK ACTIONS & HIGH-CONTRAST BUTTONS

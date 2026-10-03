@@ -3,6 +3,11 @@ import Icon from '../../components/common/Icon';
 import { useLanguage } from '../../context/LanguageContext';
 import { useApp } from '../../context/AppContext';
 import { CROPS, byId, fmt, inr } from '../../data/cropsData';
+import { useMandiPrices, stateName } from '../../hooks/useMandiPrices';
+
+// Inputs keep the raw text the farmer types (so clearing a field and retyping works);
+// numbers are derived only for the calculation.
+const num = (v) => Number(v) || 0;
 
 const COST_KEYS = ['seed', 'fert', 'pest', 'labour', 'irrig', 'other'];
 const COST_COL = {
@@ -15,8 +20,10 @@ const COST_COL = {
 };
 
 export default function PlannerPage() {
-  const { t, L, loc, W } = useLanguage();
+  const { t, L, loc, W, lang } = useLanguage();
   const { plannerCrop } = useApp();
+  const { data: mandi } = useMandiPrices();
+  const [priceEdited, setPriceEdited] = useState(false);
 
   const [selectedCrop, setSelectedCrop] = useState(plannerCrop || 'maize');
   const [area, setArea] = useState(2.5);
@@ -39,13 +46,23 @@ export default function PlannerPage() {
     }
   });
 
+  const mandiRef = React.useRef(mandi);
+  mandiRef.current = mandi;
+  const live = mandi?.crops?.[selectedCrop];
+
+  // Live price arrives (or refreshes every 5 h): apply it unless the farmer typed their own price
+  useEffect(() => {
+    if (live && !priceEdited) setPriceVal(live.price);
+  }, [live?.price, priceEdited]);
+
   const setCropDefaults = useCallback((cropId, resetArea = false) => {
     const c = byId(cropId);
     if (!c) return;
     setSelectedCrop(cropId);
     setCosts({ ...c.cost });
     setYieldVal(c.yield);
-    setPriceVal(c.price);
+    setPriceVal(mandiRef.current?.crops?.[cropId]?.price ?? c.price);
+    setPriceEdited(false);
     if (resetArea) {
       setArea(2.5);
     }
@@ -70,10 +87,10 @@ export default function PlannerPage() {
   const handleSavePlan = () => {
     const newPlan = {
       crop: selectedCrop,
-      area,
-      costs: { ...costs },
-      yld: yieldVal,
-      price: priceVal,
+      area: num(area),
+      costs: Object.fromEntries(COST_KEYS.map((k) => [k, num(costs[k])])),
+      yld: num(yieldVal),
+      price: num(priceVal),
       profit: gross - total,
       at: Date.now(),
     };
@@ -93,6 +110,7 @@ export default function PlannerPage() {
     setCosts({ ...p.costs });
     setYieldVal(p.yld);
     setPriceVal(p.price);
+    setPriceEdited(true);
   };
 
   const handleDeletePlan = (index) => {
@@ -107,14 +125,16 @@ export default function PlannerPage() {
     return Object.values(costs).reduce((a, b) => a + (Number(b) || 0), 0);
   }, [costs]);
 
-  const total = perAcreCost * (Number(area) || 0);
-  const prod = (Number(yieldVal) || 0) * (Number(area) || 0);
-  const gross = prod * (Number(priceVal) || 0);
+  const acres = num(area);
+  const total = perAcreCost * acres;
+  const prod = num(yieldVal) * acres;
+  const gross = prod * num(priceVal);
+  const revPerAcre = num(yieldVal) * num(priceVal);
   const profit = gross - total;
-  const isLoss = profit < 0;
 
-  const ppa = area ? profit / area : 0;
-  const be = yieldVal ? `${inr(perAcreCost / yieldVal)}/q` : '—';
+  const ppa = revPerAcre - perAcreCost; // per acre, independent of area
+  const isLoss = profit < 0;
+  const be = num(yieldVal) ? `${inr(perAcreCost / num(yieldVal))}/q` : '—';
   const roi = total ? `${((profit / total) * 100).toFixed(0)}%` : '—';
 
   const maxVal = Math.max(total, gross) || 1;
@@ -122,7 +142,7 @@ export default function PlannerPage() {
   // Sensitivity data (-20% to +20%)
   const steps = [-0.2, -0.1, 0, 0.1, 0.2].map((s) => ({
     s,
-    p: prod * (Number(priceVal) || 0) * (1 + s) - total,
+    p: prod * num(priceVal) * (1 + s) - total,
   }));
   const hi = Math.max(0, ...steps.map((x) => x.p));
   const lo = Math.min(0, ...steps.map((x) => x.p));
@@ -174,7 +194,7 @@ export default function PlannerPage() {
                   step="0.5"
                   value={area}
                   aria-label="Farm area slider"
-                  onChange={(e) => setArea(parseFloat(e.target.value) || 0)}
+                  onChange={(e) => setArea(e.target.value)}
                 />
                 <div className="inp">
                   <input
@@ -184,7 +204,7 @@ export default function PlannerPage() {
                     step="0.5"
                     value={area}
                     inputMode="decimal"
-                    onChange={(e) => setArea(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => setArea(e.target.value)}
                   />
                   <span className="suf">{t('acres', 'acres')}</span>
                 </div>
@@ -206,12 +226,7 @@ export default function PlannerPage() {
                     step="100"
                     inputMode="numeric"
                     value={costs[k]}
-                    onChange={(e) =>
-                      setCosts({
-                        ...costs,
-                        [k]: parseFloat(e.target.value) || 0,
-                      })
-                    }
+                    onChange={(e) => setCosts((c) => ({ ...c, [k]: e.target.value }))}
                   />
                 </div>
               </div>
@@ -230,7 +245,7 @@ export default function PlannerPage() {
                   step="0.5"
                   inputMode="decimal"
                   value={yieldVal}
-                  onChange={(e) => setYieldVal(parseFloat(e.target.value) || 0)}
+                  onChange={(e) => setYieldVal(e.target.value)}
                 />
                 <span className="suf">q</span>
               </div>
@@ -247,9 +262,21 @@ export default function PlannerPage() {
                   step="50"
                   inputMode="numeric"
                   value={priceVal}
-                  onChange={(e) => setPriceVal(parseFloat(e.target.value) || 0)}
+                  onChange={(e) => { setPriceVal(e.target.value); setPriceEdited(true); }}
                 />
               </div>
+              <p className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>
+                {live ? (
+                  <>
+                    {L({ en: 'Live mandi price', te: 'ప్రత్యక్ష మండీ ధర' })}: <b style={{ fontWeight: 500 }}>{inr(live.price)}/{L({ en: 'q', te: 'క్వి' })}</b> · {stateName(live.state, lang)} · {new Date(live.date).toLocaleDateString(loc, { day: 'numeric', month: 'short' })} ({L({ en: 'Agmarknet', te: 'అగ్‌మార్క్‌నెట్' })})
+                    {priceEdited && num(priceVal) !== live.price && (
+                      <button type="button" className="btn sm" style={{ marginLeft: 8, minHeight: 28 }} onClick={() => { setPriceVal(live.price); setPriceEdited(false); }}>
+                        {L({ en: 'Use live price', te: 'ప్రత్యక్ష ధర వాడండి' })}
+                      </button>
+                    )}
+                  </>
+                ) : L({ en: 'Typical price — live mandi price not available for this crop right now.', te: 'సాధారణ ధర — ఈ పంటకు ప్రత్యక్ష మండీ ధర ప్రస్తుతం లేదు.' })}
+              </p>
             </div>
           </div>
 
@@ -323,6 +350,11 @@ export default function PlannerPage() {
           <div className={`out-v ${isLoss ? 'loss' : ''}`} id="oProfit">
             {inr(profit)}
           </div>
+          <div className="out-grid" style={{ marginBottom: 0 }}>
+            <div><span>{L({ en: 'Cost / acre', te: 'ఖర్చు / ఎకరం' })}</span><b>{inr(perAcreCost)}</b></div>
+            <div><span>{L({ en: 'Revenue / acre', te: 'ఆదాయం / ఎకరం' })}</span><b>{inr(revPerAcre)}</b></div>
+            <div><span>{L({ en: 'Profit / acre', te: 'లాభం / ఎకరం' })}</span><b>{inr(ppa)}</b></div>
+          </div>
 
           <div className="out-grid">
             <div>
@@ -336,10 +368,6 @@ export default function PlannerPage() {
             <div>
               <span>{t('econ.gross', 'Gross revenue')}</span>
               <b id="oGross">{inr(gross)}</b>
-            </div>
-            <div>
-              <span>{t('econ.ppa', 'Profit / acre')}</span>
-              <b id="oPpa">{inr(ppa)}</b>
             </div>
             <div>
               <span>{t('econ.be', 'Break-even price')}</span>
@@ -360,7 +388,7 @@ export default function PlannerPage() {
               <i
                 key={k}
                 style={{
-                  width: `${((costs[k] * area) / maxVal) * 100}%`,
+                  width: `${((num(costs[k]) * acres) / maxVal) * 100}%`,
                   background: COST_COL[k],
                 }}
               />
@@ -380,7 +408,7 @@ export default function PlannerPage() {
               <span key={k}>
                 <i style={{ background: COST_COL[k] }} />
                 {L(W[k])}{' '}
-                {total ? Math.round(((costs[k] * area) / total) * 100) : 0}%
+                {total ? Math.round(((num(costs[k]) * acres) / total) * 100) : 0}%
               </span>
             ))}
           </div>
@@ -420,7 +448,7 @@ export default function PlannerPage() {
                     : Math.round(x.p / 1000) + 'k';
                 const priceLabel =
                   x.s === 0
-                    ? '₹' + fmt(priceVal)
+                    ? '₹' + fmt(num(priceVal))
                     : (x.s > 0 ? '+' : '') + x.s * 100 + '%';
 
                 return (
