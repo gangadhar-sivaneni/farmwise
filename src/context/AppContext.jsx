@@ -101,6 +101,43 @@ export function AppProvider({ children }) {
     } catch {}
   }, []);
 
+  const [scanAlerts, setScanAlertsState] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('fw.scan_alerts')) || [];
+    } catch {
+      return [];
+    }
+  });
+
+  const saveScanAlert = useCallback((alertItem) => {
+    setScanAlertsState((prev) => {
+      const newAlert = {
+        id: 'scan-' + Date.now(),
+        date: new Date().toISOString(),
+        ...alertItem,
+      };
+      const next = [newAlert, ...prev.filter(a => a.id !== newAlert.id)].slice(0, 10);
+      try {
+        localStorage.setItem('fw.scan_alerts', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    showToast({
+      en: 'Scan result saved to dashboard alerts & activity.',
+      te: 'స్కాన్ ఫలితం డాష్‌బోర్డ్ అలర్ట్‌లలో సేవ్ చేయబడింది.'
+    });
+  }, [showToast]);
+
+  const dismissScanAlert = useCallback((id) => {
+    setScanAlertsState((prev) => {
+      const next = prev.filter((a) => a.id !== id);
+      try {
+        localStorage.setItem('fw.scan_alerts', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -122,6 +159,9 @@ export function AppProvider({ children }) {
         setPlannerCrop,
         videoModalOpen,
         setVideoModalOpen,
+        scanAlerts,
+        saveScanAlert,
+        dismissScanAlert,
       }}
     >
       {children}

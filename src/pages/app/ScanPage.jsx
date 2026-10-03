@@ -1,19 +1,42 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Icon from '../../components/common/Icon';
 import { useLanguage } from '../../context/LanguageContext';
-import { IMG } from '../../data/cropsData';
+import { useApp } from '../../context/AppContext';
+import { CROPS } from '../../data/cropsData';
 
-const SAMPLE_LEAF = IMG('photo-1523348837708-15d4a09cfac2', 1000);
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB limit
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
 export default function ScanPage() {
-  const { t, L } = useLanguage();
+  const { t, L, lang } = useLanguage();
+  const { saveScanAlert } = useApp();
 
-  const [scanState, setScanState] = useState('idle'); // 'idle' | 'ready' | 'scanning' | 'done'
+  // Selected crop filter / hint
+  const [selectedCrop, setSelectedCrop] = useState('');
+
+  // Photo states
+  const [scanState, setScanState] = useState('idle'); // 'idle' | 'ready' | 'scanning' | 'done' | 'error'
   const [photoSrc, setPhotoSrc] = useState(null);
   const [photoName, setPhotoName] = useState('');
+  const [photoSize, setPhotoSize] = useState(null);
+  const [photoBase64, setPhotoBase64] = useState(null);
+  const [photoMimeType, setPhotoMimeType] = useState('image/jpeg');
   const [isDragOver, setIsDragOver] = useState(false);
-  const [scanStatusIndex, setScanStatusIndex] = useState(0);
+  const [uploadError, setUploadError] = useState(null);
 
+  // Real-time analysis result & loading steps
+  const [analysisResult, setAnalysisResult] = useState(null);
+  const [scanStatusIndex, setScanStatusIndex] = useState(0);
+  const [savedToAlerts, setSavedToAlerts] = useState(false);
+
+  // Server Gemini API Key configuration status
+  const [keyConfigured, setKeyConfigured] = useState(null);
+
+  // References
+  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const resultRef = useRef(null);
+  const uploadSectionRef = useRef(null);
   const timersRef = useRef([]);
 
   const clearTimers = () => {
@@ -21,301 +44,777 @@ export default function ScanPage() {
     timersRef.current = [];
   };
 
+  // Check server API key configuration status on mount
   useEffect(() => {
-    return () => clearTimers();
+    let isMounted = true;
+    fetch('/api/config-status')
+      .then((res) => (res.ok ? res.json() : { configured: false }))
+      .then((data) => {
+        if (isMounted) {
+          setKeyConfigured(Boolean(data.configured));
+        }
+      })
+      .catch(() => {
+        if (isMounted) setKeyConfigured(false);
+      });
+
+    return () => {
+      isMounted = false;
+      clearTimers();
+    };
   }, []);
 
-  const handleSelectPhoto = (src, name) => {
-    clearTimers();
-    setPhotoSrc(src);
-    setPhotoName(name);
-    setScanState(src ? 'ready' : 'idle');
+  // Smoothly scroll the result into view without covering page heading or upload controls
+  useEffect(() => {
+    if (scanState === 'done' && resultRef.current) {
+      const timer = setTimeout(() => {
+        if (!resultRef.current) return;
+        const rect = resultRef.current.getBoundingClientRect();
+        const currentY = window.scrollY || window.pageYOffset;
+        const vh = window.innerHeight;
+
+        // Position top of result card comfortably below the top fold (~30-36% down)
+        // so the analyze button and image preview remain visible above it without jumping
+        if (rect.top > vh * 0.6 || rect.top < 0) {
+          const targetY = Math.max(0, currentY + rect.top - Math.round(vh * 0.32));
+          window.scrollTo({
+            top: targetY,
+            behavior: 'smooth',
+          });
+        }
+      }, 120);
+
+      return () => clearTimeout(timer);
+    }
+  }, [scanState]);
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '';
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const handleFileInput = (e) => {
-    const f = e.target.files[0];
-    if (f && f.type.startsWith('image/')) {
-      handleSelectPhoto(URL.createObjectURL(f), f.name);
+  const handleSelectFile = useCallback((file) => {
+    setUploadError(null);
+    if (!file) return;
+
+    // Validate mime type
+    const isImage = file.type.startsWith('image/') || ALLOWED_MIME_TYPES.includes(file.type.toLowerCase());
+    if (!isImage) {
+      setUploadError(
+        t('scan.errType', 'Please choose a valid image file (JPEG, PNG, or WebP).')
+      );
+      return;
     }
+
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setUploadError(
+        t('scan.errSize', 'The selected photo exceeds the 10 MB limit. Please choose a smaller photo.')
+      );
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      setPhotoSrc(dataUrl);
+      setPhotoBase64(dataUrl);
+      setPhotoName(file.name);
+      setPhotoSize(file.size);
+      setPhotoMimeType(file.type || 'image/jpeg');
+      setScanState('ready');
+      setAnalysisResult(null);
+      setSavedToAlerts(false);
+    };
+    reader.onerror = () => {
+      setUploadError(
+        L({
+          en: 'Failed to read photo file. Please try selecting it again.',
+          te: 'ఫోటో ఫైల్ చదవడం విఫలమైంది. దయచేసి మళ్లీ ప్రయత్నించండి.',
+        })
+      );
+    };
+    reader.readAsDataURL(file);
+  }, [t, L]);
+
+  const handleFileInputChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) handleSelectFile(file);
     e.target.value = '';
   };
 
-  const handleUseSample = () => {
-    handleSelectPhoto(
-      SAMPLE_LEAF,
-      L({ en: 'Sample photo', te: 'నమూనా ఫోటో' })
-    );
+  const handleClearPhoto = () => {
+    clearTimers();
+    setPhotoSrc(null);
+    setPhotoBase64(null);
+    setPhotoName('');
+    setPhotoSize(null);
+    setUploadError(null);
+    setScanState('idle');
+    setAnalysisResult(null);
+    setSavedToAlerts(false);
   };
 
-  const handleClearPhoto = () => {
-    handleSelectPhoto(null, '');
+  const handleScanAnother = () => {
+    handleClearPhoto();
+    if (uploadSectionRef.current) {
+      uploadSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    // Open file picker shortly after scroll initiates
+    setTimeout(() => {
+      fileInputRef.current?.click();
+    }, 250);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragOver(false);
-    const f = [...e.dataTransfer.files].find((file) =>
-      file.type.startsWith('image/')
+    const file = [...e.dataTransfer.files].find(
+      (f) => f.type.startsWith('image/') || ALLOWED_MIME_TYPES.includes(f.type)
     );
-    if (f) {
-      handleSelectPhoto(URL.createObjectURL(f), f.name);
+    if (file) {
+      handleSelectFile(file);
+    } else {
+      setUploadError(
+        t('scan.errType', 'Please drop a valid image file (JPEG, PNG, or WebP).')
+      );
     }
   };
 
-  const startAnalysis = () => {
+  const statusSteps = [
+    { en: 'Examining leaf surface, lesions, and discoloration…', te: 'ఆకు ఉపరితలం, మచ్చలు, రంగు మార్పులను పరిశీలిస్తోంది…' },
+    { en: 'Consulting Google Gemini plant pathology vision model…', te: 'గూగుల్ జెమిని వ్యవసాయ నమూనాతో విశ్లేషిస్తోంది…' },
+    { en: 'Generating real-time diagnosis & safe field recommendations…', te: 'నిజ-సమయ ఫలితం, సురక్షిత చర్యలను రూపొందిస్తోంది…' },
+  ];
+
+  const startAnalysis = async () => {
+    if (!photoSrc || scanState === 'scanning') return;
+    clearTimers();
     setScanState('scanning');
     setScanStatusIndex(0);
-
-    const statusSteps = [
-      { en: 'Finding the leaf…', te: 'ఆకును గుర్తిస్తోంది…' },
-      { en: 'Checking spots and colour…', te: 'మచ్చలు, రంగు పరిశీలిస్తోంది…' },
-      { en: 'Comparing with sample library…', te: 'నమూనా లైబ్రరీతో పోలుస్తోంది…' },
-    ];
+    setUploadError(null);
+    setSavedToAlerts(false);
 
     statusSteps.forEach((_, i) => {
       timersRef.current.push(
         setTimeout(() => {
           setScanStatusIndex(i);
-        }, i * 800)
+        }, i * 1100)
       );
     });
 
-    timersRef.current.push(
-      setTimeout(() => {
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: photoBase64,
+          mimeType: photoMimeType,
+          crop: selectedCrop,
+          lang,
+        }),
+      });
+
+      const json = await response.json();
+
+      if (json.success && json.data) {
+        setAnalysisResult(json.data);
         setScanState('done');
-      }, 2500)
-    );
+      } else {
+        throw new Error(json.error || 'Server error occurred during real-time analysis.');
+      }
+    } catch (err) {
+      console.error('Real-time scan analysis failed:', err);
+      setScanState('ready');
+      setUploadError(err.message || 'Real-time analysis failed. Please check your photo and try again.');
+    }
   };
 
-  const statusMessages = [
-    { en: 'Finding the leaf…', te: 'ఆకును గుర్తిస్తోంది…' },
-    { en: 'Checking spots and colour…', te: 'మచ్చలు, రంగు పరిశీలిస్తోంది…' },
-    { en: 'Comparing with sample library…', te: 'నమూనా లైబ్రరీతో పోలుస్తోంది…' },
-  ];
+  const handleSaveToAlerts = () => {
+    if (!analysisResult) return;
+
+    saveScanAlert({
+      crop: analysisResult.identified_crop || selectedCrop || 'Crop',
+      possible_issue: analysisResult.possible_issue || 'Crop Health Observation',
+      confidence: analysisResult.confidence_pct,
+      confidence_level: analysisResult.confidence_level,
+      first_step: analysisResult.practical_next_steps?.[0] || 'Monitor plants daily',
+    });
+
+    setSavedToAlerts(true);
+  };
+
+  const getCertaintyClass = (level) => {
+    if (level === 'high') return 'high';
+    if (level === 'medium') return 'medium';
+    return 'uncertain';
+  };
+
+  const getCertaintyLabel = (level) => {
+    if (level === 'high') return L({ en: 'High confidence', te: 'ఎక్కువ నమ్మకం' });
+    if (level === 'medium') return L({ en: 'Moderate confidence', te: 'మధ్యస్థ నమ్మకం' });
+    if (level === 'low') return L({ en: 'Low confidence', te: 'తక్కువ నమ్మకం' });
+    return L({ en: 'Uncertain', te: 'అనిశ్చితం' });
+  };
 
   return (
     <section className="panel page" data-page="scan" style={{ display: 'block' }}>
-      <div className="page-h">
-        <div>
-          <h1>{t('scan.h', 'Photograph a leaf, catch problems early')}</h1>
-          <p>{t('scan.p', 'A demo of how FarmWise flags a likely issue.')}</p>
-        </div>
-      </div>
-
-      <div className="grid g2">
-        <div
-          className={`drop ${isDragOver ? 'over' : ''}`}
-          id="drop"
-          onDragEnter={(e) => {
-            e.preventDefault();
-            setIsDragOver(true);
-          }}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragOver(true);
-          }}
-          onDragLeave={(e) => {
-            e.preventDefault();
-            setIsDragOver(false);
-          }}
-          onDrop={handleDrop}
-        >
-          <div className="big">
-            <Icon name="scan" className="ico lg" />
+      <div className="scan-page-flow">
+        {/* =========================================================
+            SECTION 1: PAGE HEADING AND SHORT INSTRUCTIONS
+            ========================================================= */}
+        <header className="scan-heading-block">
+          <div className="scan-heading-badge">
+            <Icon name="scan" className="ico sm" />
+            <span>{L({ en: 'AI Plant Health Diagnosis', te: 'AI పంట ఆరోగ్య నిర్ధారణ' })}</span>
           </div>
-          <h3>{t('scan.drop', 'Drop a leaf photo here')}</h3>
-          <p>{t('scan.dropP', 'One leaf, in daylight, filling the frame.')}</p>
-          <div className="btns">
-            <label className="btn btn-dark file-btn">
-              <Icon name="upload" className="ico sm" />
-              <span>{t('scan.choose', 'Choose photo')}</span>
-              <input
-                type="file"
-                id="scanInput"
-                accept="image/*"
-                aria-label="Upload crop photo"
-                onChange={handleFileInput}
-              />
-            </label>
-            <button
-              type="button"
-              className="btn"
-              id="sampleImg"
-              onClick={handleUseSample}
-            >
-              <Icon name="image" className="ico sm" />
-              <span>{t('scan.sample', 'Use sample photo')}</span>
-            </button>
-          </div>
+          <h1 className="scan-heading-title">{t('scan.h', 'Photograph a leaf, catch problems early')}</h1>
+          <p className="scan-heading-desc">
+            {t('scan.p', 'Take or upload a photo of an affected plant for live, real-time AI diagnosis and safe field steps.')}
+          </p>
+        </header>
 
-          <div
-            className={`preview ${photoSrc ? 'show' : ''} ${
-              scanState === 'scanning' ? 'scanning' : ''
-            }`}
-            id="preview"
-          >
-            {photoSrc && <img id="previewImg" src={photoSrc} alt="Selected crop photo" />}
-            <div className="frame" />
-            <div className="sweep" />
-            <div className="bar2">
-              <span id="previewName">{photoName}</span>
-              <button
-                type="button"
-                className="icon-btn"
-                id="clearImg"
-                aria-label="Remove photo"
-                onClick={handleClearPhoto}
-              >
-                <Icon name="x" className="ico sm" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="card dark-card result" id="result" aria-live="polite">
-          {(scanState === 'idle' || scanState === 'ready') && (
-            <div style={{ margin: 'auto 0' }}>
-              <span className="pill demo" style={{ alignSelf: 'flex-start' }}>
-                <i />
-                <span>{L({ en: 'Demo simulation', te: 'డెమో అనుకరణ' })}</span>
-              </span>
-              <h3>
-                {L(
-                  scanState === 'ready'
-                    ? { en: 'Photo ready. Run the scan.', te: 'ఫోటో సిద్ధం. స్కాన్ చేయండి.' }
-                    : { en: 'Results appear here', te: 'ఫలితాలు ఇక్కడ కనిపిస్తాయి' }
-                )}
-              </h3>
-              <ol>
-                <li>
-                  {L({
-                    en: 'Upload or use the sample photo',
-                    te: 'ఫోటో అప్‌లోడ్ చేయండి లేదా నమూనా వాడండి',
-                  })}
-                </li>
-                <li>
-                  {L({
-                    en: 'Tap Analyze Crop',
-                    te: 'పంటను విశ్లేషించండి నొక్కండి',
-                  })}
-                </li>
-                <li>
-                  {L({
-                    en: 'Read the likely issue and next steps',
-                    te: 'సంభావ్య సమస్య, తదుపరి చర్యలు చదవండి',
-                  })}
-                </li>
-              </ol>
-              <button
-                type="button"
-                className="btn btn-orange"
-                id="analyzeBtn"
-                style={{ marginTop: '24px' }}
-                disabled={scanState !== 'ready'}
-                onClick={startAnalysis}
-              >
-                <Icon name="scan" className="ico sm" />
-                <span>{L({ en: 'Analyze Crop', te: 'పంటను విశ్లేషించండి' })}</span>
-              </button>
-            </div>
-          )}
-
-          {scanState === 'scanning' && (
-            <div style={{ margin: 'auto 0' }}>
-              <span className="pill demo" style={{ alignSelf: 'flex-start' }}>
-                <i />
-                <span>{L({ en: 'Demo simulation', te: 'డెమో అనుకరణ' })}</span>
-              </span>
-              <h3>{L({ en: 'Analysing photo', te: 'ఫోటోను విశ్లేషిస్తోంది' })}</h3>
-              <p className="status" id="scanStatus">
-                <span className="spin" />
-                <span>{L(statusMessages[scanStatusIndex])}</span>
+        {/* API Key Missing Notice (if applicable) */}
+        {keyConfigured === false && (
+          <div className="scan-setup-card" role="region" aria-label="Setup notice">
+            <Icon name="alert" className="ico" style={{ color: 'var(--orange)', marginTop: '2px', flexShrink: 0 }} />
+            <div>
+              <strong style={{ fontSize: '14.5px' }}>
+                {L({ en: 'Gemini API Key Required in .env', te: 'జెమిని API కీ అవసరం' })}
+              </strong>
+              <p style={{ margin: '4px 0 0', fontSize: '13.5px', color: 'var(--ink-2)' }}>
+                {L({
+                  en: 'To run real-time plant analysis, configure GEMINI_API_KEY in your .env file on the server.',
+                  te: 'ప్రత్యక్ష విశ్లేషణ కోసం మీ .env ఫైల్‌లో GEMINI_API_KEY ని అమర్చండి.',
+                })}
               </p>
             </div>
-          )}
+          </div>
+        )}
 
-          {scanState === 'done' && (
-            <>
-              <div className="res-top">
-                <div>
-                  <span className="pill demo">
-                    <i />
-                    <span>
-                      {L({ en: 'Demo result · not a diagnosis', te: 'డెమో ఫలితం · నిర్ధారణ కాదు' })}
-                    </span>
-                  </span>
-                  <h3>{L({ en: 'Possible leaf blight', te: 'ఆకు ఎండు తెగులు కావచ్చు' })}</h3>
-                </div>
-                <div className="pc">
-                  <b>71%</b>
-                  <span>{L({ en: 'sample match', te: 'నమూనా సరిపోలిక' })}</span>
-                </div>
+        {/* =========================================================
+            SECTION 2: UPLOAD CROP PHOTO SECTION
+            ========================================================= */}
+        <div ref={uploadSectionRef} className="scan-upload-card" role="region" aria-label="Upload crop photo section">
+          {/* Always-mounted hidden file and camera inputs */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            id="scanFileInput"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+            aria-label="Upload crop photo"
+            onChange={handleFileInputChange}
+            style={{ display: 'none' }}
+          />
+          <input
+            ref={cameraInputRef}
+            type="file"
+            id="scanCameraInput"
+            accept="image/*"
+            capture="environment"
+            aria-label="Take photo with camera"
+            onChange={handleFileInputChange}
+            style={{ display: 'none' }}
+          />
+
+          {/* Crop Selector */}
+          <div className="scan-crop-selector">
+            <label id="cropSelectLabel" className="scan-selector-label">
+              <Icon name="layers" className="ico sm" />
+              <span>{t('scan.cropLabel', 'Select crop (if known)')}</span>
+            </label>
+            <div className="crop-select-pills" role="radiogroup" aria-labelledby="cropSelectLabel">
+              <button
+                type="button"
+                className={`crop-pill-btn ${selectedCrop === '' ? 'active' : ''}`}
+                onClick={() => setSelectedCrop('')}
+                aria-checked={selectedCrop === ''}
+                role="radio"
+              >
+                {t('scan.cropAuto', 'Auto-detect / Other')}
+              </button>
+              {CROPS.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`crop-pill-btn ${selectedCrop === c.id ? 'active' : ''}`}
+                  onClick={() => setSelectedCrop(c.id)}
+                  aria-checked={selectedCrop === c.id}
+                  role="radio"
+                >
+                  {L(c.name)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Photo Dropzone or Preview */}
+          {!photoSrc ? (
+            /* Dropzone when NO photo is selected */
+            <div
+              className={`scan-dropzone ${isDragOver ? 'over' : ''}`}
+              id="dropzoneArea"
+              onDragEnter={(e) => {
+                e.preventDefault();
+                setIsDragOver(true);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragOver(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setIsDragOver(false);
+              }}
+              onDrop={handleDrop}
+            >
+              <div className="scan-dropzone-icon">
+                <Icon name="camera" className="ico lg" />
               </div>
+              <h2 className="scan-dropzone-title">{t('scan.drop', 'Drop a leaf or plant photo here')}</h2>
+              <p className="scan-dropzone-subtitle">{t('scan.dropP', 'One leaf, in daylight, filling the frame with clear focus.')}</p>
 
-              <div className="sev">
-                <div className="l">
-                  <span>{L({ en: 'Severity', te: 'తీవ్రత' })}</span>
-                  <b>{L({ en: 'Moderate · 2 of 4', te: 'మధ్యస్థం · 4 లో 2' })}</b>
-                </div>
-                <div className="segs">
-                  <i className="on" />
-                  <i className="on" />
-                  <i />
-                  <i />
-                </div>
+              {/* Action Buttons: Camera & Upload */}
+              <div className="scan-upload-btns">
+                <button
+                  type="button"
+                  className="btn btn-dark scan-btn-camera"
+                  id="cameraTriggerBtn"
+                  onClick={() => cameraInputRef.current?.click()}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <Icon name="camera" className="ico sm" />
+                  <span>{t('scan.camera', 'Take photo')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="btn scan-btn-choose"
+                  id="chooseFileTriggerBtn"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <Icon name="upload" className="ico sm" />
+                  <span>{t('scan.choose', 'Choose photo')}</span>
+                </button>
               </div>
-
-              <div className="rs">
-                <h4>{L({ en: 'Symptoms', te: 'లక్షణాలు' })}</h4>
-                <p>
-                  {L({
-                    en: 'Long grey-green to tan streaks along the leaf, starting low and moving up.',
-                    te: 'ఆకు పొడవునా బూడిద-ఆకుపచ్చ నుండి గోధుమ రంగు చారలు.',
-                  })}
-                </p>
-              </div>
-
-              <div className="rs">
-                <h4>{L({ en: 'Next steps', te: 'తదుపరి చర్యలు' })}</h4>
-                <ul>
-                  <li>{L({ en: 'Remove badly affected lower leaves.', te: 'బాగా దెబ్బతిన్న కింది ఆకులను తీసివేయండి.' })}</li>
-                  <li>{L({ en: 'Avoid evening irrigation so leaves dry overnight.', te: 'సాయంత్రం నీరు పెట్టకండి.' })}</li>
-                  <li>
-                    {L({
-                      en: 'Confirm with your Agriculture Extension Officer before any fungicide.',
-                      te: 'శిలీంద్ర నాశిని ముందు వ్యవసాయ విస్తరణ అధికారితో నిర్ధారించుకోండి.',
-                    })}
-                  </li>
-                  <li>{L({ en: 'Re-scan the same plant in 5 days.', te: '5 రోజుల తర్వాత మళ్లీ స్కాన్ చేయండి.' })}</li>
-                </ul>
-              </div>
-
-              <div className="warn">
-                <Icon name="alert" className="ico sm" />
-                <span>
-                  {L({
-                    en: 'Simulated demo result, not a real diagnosis. Always confirm with an expert.',
-                    te: 'ఇది అనుకరణ డెమో ఫలితం, నిజమైన నిర్ధారణ కాదు.',
-                  })}
+            </div>
+          ) : (
+            /* Clear, Visible Photo Preview when photo IS selected (kept visible during and after analysis) */
+            <div className="scan-preview-wrapper">
+              <div className="scan-preview-header">
+                <span className="scan-preview-status">
+                  <Icon name="check" className="ico sm" />
+                  <span>{L({ en: 'Photo Ready for Inspection', te: 'పరిశీలనకు ఫోటో సిద్ధంగా ఉంది' })}</span>
+                </span>
+                <span className="scan-preview-crop-tag">
+                  {selectedCrop ? CROPS.find(c => c.id === selectedCrop)?.name?.[lang] || selectedCrop : t('scan.cropAuto', 'Auto-detect crop')}
                 </span>
               </div>
 
-              <div style={{ display: 'flex', gap: '8px', marginTop: '14px', flexWrap: 'wrap' }}>
-                <a href="#/app/market" className="btn btn-orange sm">
-                  {L({ en: 'Find a nearby shop', te: 'సమీప దుకాణం చూడండి' })}
-                </a>
-                <button
-                  type="button"
-                  className="btn sm"
-                  id="rescan"
-                  onClick={() => setScanState('ready')}
-                >
-                  {L({ en: 'Scan again', te: 'మళ్లీ స్కాన్' })}
-                </button>
+              <div className={`scan-preview-frame ${scanState === 'scanning' ? 'is-scanning' : ''}`}>
+                <img src={photoSrc} alt={photoName || 'Selected crop leaf'} className="scan-preview-img" />
+                <div className="scan-laser-sweep" />
               </div>
-            </>
+
+              <div className="scan-preview-toolbar">
+                <div className="scan-file-meta">
+                  <span className="scan-filename" title={photoName}>{photoName}</span>
+                  {photoSize && <span className="scan-filesize">{formatFileSize(photoSize)}</span>}
+                </div>
+
+                <div className="scan-preview-controls">
+                  <button
+                    type="button"
+                    className="btn btn-sm scan-control-btn"
+                    id="replacePhotoBtn"
+                    onClick={() => fileInputRef.current?.click()}
+                    aria-label={t('scan.replace', 'Replace photo')}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <Icon name="upload" className="ico sm" />
+                    <span>{t('scan.replace', 'Replace')}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-sm scan-control-btn"
+                    id="cameraReplaceBtn"
+                    onClick={() => cameraInputRef.current?.click()}
+                    aria-label="Take new photo"
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <Icon name="camera" className="ico sm" />
+                    <span>{L({ en: 'Camera', te: 'కెమెరా' })}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-sm scan-control-btn btn-danger-soft"
+                    id="clearImg"
+                    aria-label={t('scan.remove', 'Remove photo')}
+                    onClick={handleClearPhoto}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <Icon name="x" className="ico sm" />
+                    <span>{t('scan.remove', 'Remove')}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error Message Box (if validation or upload error) */}
+          {uploadError && (
+            <div className="scan-error-alert" role="alert">
+              <Icon name="alert" className="ico sm" style={{ flexShrink: 0 }} />
+              <span>{uploadError}</span>
+            </div>
+          )}
+
+          {/* Guidelines and Tips */}
+          <div className="scan-guidance-card">
+            <h3 className="scan-guidance-title">
+              <Icon name="info" className="ico sm" />
+              <span>{t('scan.tipsTitle', 'Tips for a useful photo')}</span>
+            </h3>
+            <div className="scan-guidance-grid">
+              <div className="scan-tip-item">
+                <span className="scan-tip-num">1</span>
+                <span>{t('scan.tip1', 'Good daylight: Take the photo in natural morning or afternoon light.')}</span>
+              </div>
+              <div className="scan-tip-item">
+                <span className="scan-tip-num">2</span>
+                <span>{t('scan.tip2', 'Sharp focus: Tap to focus directly on the spots, lesions, or insects.')}</span>
+              </div>
+              <div className="scan-tip-item">
+                <span className="scan-tip-num">3</span>
+                <span>{t('scan.tip3', 'Include context: Show both the affected area and a little healthy green.')}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="scan-privacy-line">
+            <Icon name="check" className="ico sm" style={{ color: 'var(--leaf)', flexShrink: 0 }} />
+            <span>
+              {t(
+                'scan.privacyNotice',
+                'Privacy: Your photo is only sent to the configured Google Gemini service for AI analysis. It is never sold, publicly shared, or permanently stored.'
+              )}
+            </span>
+          </div>
+        </div>
+
+        {/* =========================================================
+            SECTION 3: ANALYZE CROP BUTTON (AND LOADING STATE)
+            ========================================================= */}
+        <div className="scan-analyze-block">
+          <button
+            type="button"
+            className={`btn btn-orange btn-analyze-action ${scanState === 'scanning' ? 'is-loading' : ''}`}
+            id="analyzeBtn"
+            disabled={!photoSrc || scanState === 'scanning'}
+            onClick={startAnalysis}
+            aria-busy={scanState === 'scanning'}
+          >
+            {scanState === 'scanning' ? (
+              <>
+                <span className="spin scan-btn-spinner" />
+                <span>{t('scan.analyzing', 'Analyzing crop in real time…')}</span>
+              </>
+            ) : (
+              <>
+                <Icon name="scan" className="ico" />
+                <span>{t('scan.analyzeBtn', 'Analyze crop')}</span>
+              </>
+            )}
+          </button>
+
+          {!photoSrc && (
+            <div className="scan-action-helper">
+              {L({
+                en: 'Take or choose a plant photo above to enable analysis',
+                te: 'విశ్లేషణ కోసం పైనుండి ఫోటోను తీయండి లేదా ఎంచుకోండి',
+              })}
+            </div>
+          )}
+
+          {/* Real-time Analyzing Progress State Card */}
+          {scanState === 'scanning' && (
+            <div className="scan-analyzing-card" role="status" aria-live="polite">
+              <div className="scan-analyzing-header">
+                <span className="spin scan-loading-spin" />
+                <div className="scan-analyzing-text">
+                  <strong className="scan-analyzing-step">{L(statusSteps[scanStatusIndex])}</strong>
+                  <span className="scan-analyzing-sub">
+                    {L({ en: 'Powered by Google Gemini plant pathology vision model', te: 'గూగుల్ జెమిని ప్లాంట్ విజన్ నమూనా ద్వారా' })}
+                  </span>
+                </div>
+              </div>
+              <div className="scan-progress-track">
+                <div
+                  className="scan-progress-bar"
+                  style={{ width: `${((scanStatusIndex + 1) / statusSteps.length) * 100}%` }}
+                />
+              </div>
+            </div>
           )}
         </div>
+
+        {/* =========================================================
+            SECTION 4: ANALYSIS RESULT SECTION AT THE BOTTOM
+            Appears strictly below the upload and analyze sections.
+            ========================================================= */}
+        {scanState === 'done' && analysisResult && (
+          <article
+            ref={resultRef}
+            className="scan-result-card"
+            id="resultSection"
+            role="region"
+            aria-label="Crop disease analysis result"
+            aria-live="polite"
+          >
+            {/* 4.0 Result Card Top Bar */}
+            <div className="result-card-banner">
+              <div className="result-banner-left">
+                <span className="result-badge-live">
+                  <Icon name="check" className="ico sm" />
+                  <span>{L({ en: 'Live AI Assessment · Preliminary', te: 'ప్రత్యక్ష AI అంచనా · ప్రాథమిక పరిశీలన' })}</span>
+                </span>
+                {analysisResult.identified_crop && (
+                  <span className="result-badge-crop">
+                    <Icon name="layers" className="ico sm" />
+                    <span><strong>{L({ en: 'Identified crop: ', te: 'గుర్తించిన పంట: ' })}</strong>{analysisResult.identified_crop}</span>
+                  </span>
+                )}
+              </div>
+
+              {analysisResult.confidence_pct != null && (
+                <div className="result-match-pill">
+                  <div className="match-num">{analysisResult.confidence_pct}%</div>
+                  <div className="match-meta">
+                    <span className="match-label">{L({ en: 'Visual Match', te: 'సరిపోలిక' })}</span>
+                    <span className={`certainty-tag ${getCertaintyClass(analysisResult.confidence_level)}`}>
+                      {getCertaintyLabel(analysisResult.confidence_level)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Non-Plant or Unclear Photo Alert (if applicable) */}
+            {(!analysisResult.is_plant || !analysisResult.is_clear) && (
+              <div className="result-clarity-warning" role="alert">
+                <Icon name="alert" className="ico" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  <strong>
+                    {!analysisResult.is_plant
+                      ? t('scan.notPlantTitle', 'No plant or leaf detected')
+                      : t('scan.unclearTitle', 'Photo is unclear or out of focus')}
+                  </strong>
+                  <p>
+                    {analysisResult.clarity_issue ||
+                      L({
+                        en: 'The uploaded image lacks sufficient visual detail to identify plant health issues. Please ensure the camera is in focus, well lit, and framed closely on a single leaf.',
+                        te: 'అప్‌లోడ్ చేసిన ఫోటోలో ఆకు వివరాలు స్పష్టంగా లేవు. దయచేసి పగటి వెలుగులో ఆకు దగ్గరగా కనిపించేలా మళ్లీ ఫోటో తీయండి.',
+                      })}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Section 4.1: Possible Disease */}
+            <div className="result-section-box section-disease">
+              <div className="result-section-header">
+                <Icon name="sprout" className="ico sm" />
+                <h3>{t('scan.issueSec', 'Possible disease / issue')}</h3>
+              </div>
+
+              <div className="disease-title-row">
+                <h2 className="disease-primary-title">
+                  {analysisResult.possible_issue || L({ en: 'Unable to determine', te: 'నిర్ధారించలేకపోయాం' })}
+                </h2>
+              </div>
+
+              {analysisResult.confidence_explanation && (
+                <p className="disease-confidence-desc">
+                  {analysisResult.confidence_explanation}
+                </p>
+              )}
+            </div>
+
+            {/* Section 4.2: What the Image Shows */}
+            {analysisResult.visible_symptoms && analysisResult.visible_symptoms.length > 0 && (
+              <div className="result-section-box section-evidence">
+                <div className="result-section-header">
+                  <Icon name="eye" className="ico sm" />
+                  <h3>{t('scan.symptomsSec', 'What the image shows (Visible evidence)')}</h3>
+                </div>
+                <ul className="result-checklist">
+                  {analysisResult.visible_symptoms.map((symptom, i) => (
+                    <li key={i} className="evidence-item">
+                      <span className="evidence-bullet">
+                        <Icon name="check" className="ico sm" />
+                      </span>
+                      <span>{symptom}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Section 4.3: Possible Causes */}
+            {analysisResult.possible_causes && analysisResult.possible_causes.length > 0 && (
+              <div className="result-section-box section-causes">
+                <div className="result-section-header">
+                  <Icon name="cloudsun" className="ico sm" />
+                  <h3>{t('scan.causesSec', 'Possible causes & field conditions')}</h3>
+                </div>
+                <ul className="result-checklist">
+                  {analysisResult.possible_causes.map((cause, i) => (
+                    <li key={i} className="cause-item">
+                      <span className="cause-bullet">•</span>
+                      <span>{cause}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Section 4.4: Recommended Next Steps */}
+            {analysisResult.practical_next_steps && analysisResult.practical_next_steps.length > 0 && (
+              <div className="result-section-box section-steps">
+                <div className="result-section-header">
+                  <Icon name="check-sq" className="ico sm" />
+                  <h3>{t('scan.actionsSec', 'Recommended next steps')}</h3>
+                  <span className="safe-pill-header">{L({ en: 'Safe Field Actions', te: 'సురక్షిత చర్యలు' })}</span>
+                </div>
+                <div className="steps-list">
+                  {analysisResult.practical_next_steps.map((step, i) => (
+                    <div key={i} className="step-card">
+                      <div className="step-badge-num">{i + 1}</div>
+                      <div className="step-content">
+                        <span className="step-tag">{L({ en: 'Low-Risk Step', te: 'రక్షిత చర్య' })}</span>
+                        <p className="step-text">{step}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Section 4.5: When to Get Expert Help */}
+            {analysisResult.when_to_contact_expert && (
+              <div className="result-section-box section-expert">
+                <div className="result-section-header">
+                  <Icon name="phone" className="ico sm" />
+                  <h3>{t('scan.expertSec', 'When to get expert help')}</h3>
+                </div>
+                <div className="expert-advisory-content">
+                  <p>{analysisResult.when_to_contact_expert}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Section 4.6: Helpful Additional Photos (if applicable) */}
+            {analysisResult.additional_photo_needed && (
+              <div className="result-section-box section-additional-photo">
+                <div className="result-section-header">
+                  <Icon name="camera" className="ico sm" />
+                  <h3>{t('scan.photoSec', 'Helpful additional photos')}</h3>
+                </div>
+                <p className="additional-photo-text">{analysisResult.additional_photo_needed}</p>
+              </div>
+            )}
+
+            {/* Section 4.7: Safety Disclaimer Banner */}
+            <div className="result-disclaimer-banner" role="note">
+              <Icon name="alert" className="ico sm" style={{ flexShrink: 0 }} />
+              <span>
+                {analysisResult.safety_notice ||
+                  t(
+                    'scan.safeDisclaimer',
+                    'Important: This is an AI-generated preliminary assessment, not a laboratory diagnosis. Do not spray chemicals or pesticides without consulting your local agricultural extension officer and checking the product label.'
+                  )}
+              </span>
+            </div>
+
+            {/* Section 4.8: Quick Actions Container */}
+            <div className="result-actions-block" role="region" aria-label="Next actions">
+              <span className="actions-section-title">
+                <Icon name="arrow" className="ico sm" />
+                <span>{t('scan.nextActionsTitle', 'What would you like to do next?')}</span>
+              </span>
+
+              <div className="actions-tiles-list">
+                {/* 1. Primary Action: Scan another photo */}
+                <button
+                  type="button"
+                  className="scan-action-tile primary-rescan"
+                  id="rescanBtn"
+                  onClick={handleScanAnother}
+                  aria-label={t('scan.againBtn', 'Scan another photo')}
+                >
+                  <div className="tile-icon-box">
+                    <Icon name="scan" className="ico" />
+                  </div>
+                  <div className="tile-text">
+                    <strong className="tile-title">{t('scan.againBtn', 'Scan another photo')}</strong>
+                    <span className="tile-desc">{t('scan.againDesc', 'Take or upload a new photo to check another plant')}</span>
+                  </div>
+                  <span className="tile-arrow" aria-hidden="true">↑</span>
+                </button>
+
+                {/* 2. Secondary Action: Save to farm alerts */}
+                <button
+                  type="button"
+                  className={`scan-action-tile secondary-save ${savedToAlerts ? 'is-saved' : ''}`}
+                  id="saveScanAlertBtn"
+                  onClick={handleSaveToAlerts}
+                  disabled={savedToAlerts}
+                  aria-label={savedToAlerts ? t('scan.savedBtn', 'Saved to alerts ✓') : t('scan.saveBtn', 'Save to farm alerts')}
+                >
+                  <div className="tile-icon-box">
+                    <Icon name={savedToAlerts ? 'check' : 'save'} className="ico" />
+                  </div>
+                  <div className="tile-text">
+                    <strong className="tile-title">
+                      {savedToAlerts ? t('scan.savedBtn', 'Saved to alerts ✓') : t('scan.saveBtn', 'Save to farm alerts')}
+                    </strong>
+                    <span className="tile-desc">
+                      {savedToAlerts
+                        ? L({ en: 'Assessment saved to your farm dashboard overview', te: 'మీ డాష్‌బోర్డ్ అలర్ట్‌లలో భద్రపరచబడింది' })
+                        : t('scan.saveDesc', 'Keeps this assessment in your farm monitoring list')}
+                    </span>
+                  </div>
+                  <span className="tile-arrow" aria-hidden="true">{savedToAlerts ? '✓' : '+'}</span>
+                </button>
+
+                {/* 3. Third Action: Find nearby input shops */}
+                <a
+                  href="#/app/market"
+                  className="scan-action-tile tertiary-market"
+                  id="nearbyShopsBtn"
+                  aria-label={t('scan.marketBtn', 'Nearby input shops')}
+                >
+                  <div className="tile-icon-box">
+                    <Icon name="store" className="ico" />
+                  </div>
+                  <div className="tile-text">
+                    <strong className="tile-title">{t('scan.marketBtn', 'Nearby input shops')}</strong>
+                    <span className="tile-desc">
+                      {t('scan.marketDesc', 'Locate verified shops nearby for bio-inputs & sprayers')}
+                    </span>
+                  </div>
+                  <span className="tile-arrow" aria-hidden="true">→</span>
+                </a>
+              </div>
+            </div>
+          </article>
+        )}
       </div>
     </section>
   );

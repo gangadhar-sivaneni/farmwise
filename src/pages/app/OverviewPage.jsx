@@ -9,7 +9,7 @@ import { STAGES } from '../../data/translations';
 
 export default function OverviewPage() {
   const { t, L, loc, W, lang } = useLanguage();
-  const { activeFarm, tasksDone, toggleTask } = useApp();
+  const { activeFarm, tasksDone, toggleTask, scanAlerts = [], dismissScanAlert } = useApp();
 
   const h = new Date().getHours();
   const greetWord = L(h < 12 ? W.morning : h < 17 ? W.afternoon : W.evening);
@@ -233,7 +233,71 @@ export default function OverviewPage() {
           </div>
         </div>
 
-        <div className="grid" style={{ alignContent: 'start' }}>
+        <div className="grid" style={{ alignContent: 'start', gap: '12px' }}>
+          {scanAlerts.map((sa) => (
+            <div
+              key={sa.id}
+              className="alert"
+              role="status"
+              style={{
+                background: '#FFF9F5',
+                borderColor: '#FFD4C2',
+                color: 'var(--ink)'
+              }}
+            >
+              <div className="h" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Icon name="scan" className="ico" style={{ color: 'var(--orange)' }} />
+                  <div>
+                    <span style={{ fontWeight: 600, fontSize: '15px' }}>{sa.possible_issue || sa.title}</span>
+                    <div style={{ fontSize: '12px', color: 'var(--ink-3)', marginTop: '2px' }}>
+                      {sa.identified_crop ? `${sa.identified_crop} · ` : ''}
+                      {new Date(sa.date).toLocaleDateString(loc, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="pill" style={{ fontSize: '11px', padding: '2px 8px', background: '#EAF6E8', color: '#1F5211', fontWeight: 600, border: '1px solid #A3E635' }}>
+                    <span>{L({ en: 'AI Scan', te: 'AI స్కాన్' })}</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={() => dismissScanAlert(sa.id)}
+                    aria-label={L({ en: 'Dismiss alert', te: 'అలర్ట్ తీసివేయండి' })}
+                    style={{ width: '28px', height: '28px', minWidth: '28px' }}
+                  >
+                    <Icon name="x" className="ico sm" />
+                  </button>
+                </div>
+              </div>
+              {sa.first_step && (
+                <p style={{ margin: '8px 0 10px', fontSize: '13.5px', color: 'var(--ink-2)' }}>
+                  <strong>{L({ en: 'Action: ', te: 'చర్య: ' })}</strong>
+                  {sa.first_step}
+                </p>
+              )}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px', flexWrap: 'wrap' }}>
+                <a
+                  className="btn btn-dark sm"
+                  href="#/app/scan"
+                  style={{ textDecoration: 'none', minHeight: '34px', fontSize: '13px' }}
+                >
+                  <Icon name="scan" className="ico sm" />
+                  <span>{L({ en: 'Scan another leaf', te: 'మరో ఆకును స్కాన్ చేయండి' })}</span>
+                </a>
+                <a
+                  className="btn sm"
+                  href="#/app/market"
+                  style={{ textDecoration: 'none', minHeight: '34px', fontSize: '13px', background: '#FFFFFF', color: '#111310' }}
+                >
+                  <Icon name="store" className="ico sm" />
+                  <span>{L({ en: 'Nearby input shops', te: 'సమీప దుకాణాలు' })}</span>
+                </a>
+              </div>
+            </div>
+          ))}
+
           <div className="alert" role="status">
             <div className="h">
               <Icon name="alert" className="ico" />
