@@ -4,8 +4,15 @@ import { ukey, currentUser } from './authService';
 import { byId } from '../data/cropsData';
 import { areaFromSqm, SQM_PER_ACRE, toSvgPoints, centroidOf } from '../utils/geo';
 
-import { db } from './firebase';
-import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
+import { rtdb } from './firebase';
+import { ref, get, set, remove } from 'firebase/database';
+
+// Fail-safe helper: ensures remote calls never freeze the farmer's interface
+const withTimeout = (promise, ms = 2500) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Network timeout')), ms)),
+  ]);
 
 // Every key is scoped to the signed-in user (farmwise_user_<id>_plots …): accounts never share plots.
 const PLOTS = 'plots';
@@ -53,21 +60,21 @@ export async function listPlots() {
   const cached = getCachedPlots();
 
   try {
-    const colRef = collection(db, 'users', user.id, 'plots');
-    const snap = await getDocs(colRef);
-    if (!snap.empty) {
-      const cloudPlots = snap.docs.map((d) => d.data());
+    const snapshot = await withTimeout(get(ref(rtdb, `users/${user.id}/plots`)), 2500);
+    if (snapshot && snapshot.exists()) {
+      const val = snapshot.val();
+      const cloudPlots = Object.values(val);
       write(PLOTS, cloudPlots);
       return cloudPlots;
     } else if (cached.length > 0) {
-      // Sync existing local plots to cloud
+      // Sync locally existing plots up to cloud
       for (const p of cached) {
-        await setDoc(doc(db, 'users', user.id, 'plots', p.id), p, { merge: true });
+        withTimeout(set(ref(rtdb, `users/${user.id}/plots/${p.id}`), p), 2000).catch(() => {});
       }
       return cached;
     }
   } catch (err) {
-    console.warn('Firestore listPlots sync fallback to cache:', err);
+    console.warn('Realtime Database listPlots sync notice (using cache):', err.message);
   }
 
   return cached;
@@ -87,14 +94,14 @@ export async function savePlot(plot) {
     ? plots.map((p) => (p.id === rec.id ? rec : p))
     : [...plots, rec];
 
+  // 1. Immediately update local cache for instant UI feedback
   write(PLOTS, next);
 
+  // 2. Persist to Firebase Realtime Database in cloud
   if (user?.id) {
-    try {
-      await setDoc(doc(db, 'users', user.id, 'plots', rec.id), rec, { merge: true });
-    } catch (err) {
-      console.warn('Firestore savePlot warning (saved locally):', err);
-    }
+    withTimeout(set(ref(rtdb, `users/${user.id}/plots/${rec.id}`), rec), 2500).catch((err) => {
+      console.warn('Realtime Database savePlot cloud sync notice:', err.message);
+    });
   }
 
   return rec;
@@ -106,11 +113,9 @@ export async function deletePlot(id) {
   write(PLOTS, next);
 
   if (user?.id) {
-    try {
-      await deleteDoc(doc(db, 'users', user.id, 'plots', id));
-    } catch (err) {
-      console.warn('Firestore deletePlot warning:', err);
-    }
+    withTimeout(remove(ref(rtdb, `users/${user.id}/plots/${id}`)), 2500).catch((err) => {
+      console.warn('Realtime Database deletePlot cloud sync notice:', err.message);
+    });
   }
 
   return next;

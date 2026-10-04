@@ -1,5 +1,5 @@
-// FarmWise Authentication & Cloud Database Service (Firebase Auth & Firestore)
-import { auth, db } from './firebase';
+// FarmWise Authentication & Cloud Database Service (Firebase Auth & Realtime Database)
+import { auth, rtdb } from './firebase';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -7,10 +7,17 @@ import {
   onAuthStateChanged,
   updateProfile,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { ref, get, set } from 'firebase/database';
 
 const SESSION_KEY = 'farmwise_session_user';
 const listeners = new Set();
+
+// Fail-safe helper: prevents any remote database call from hanging the UI
+const withTimeout = (promise, ms = 2500) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Network timeout')), ms)),
+  ]);
 
 const readCachedUser = () => {
   try {
@@ -62,6 +69,7 @@ export async function register({ name, email, password, phone = '', district = '
   }
 
   try {
+    // 1. Create account in Firebase Auth (Instant cloud authentication)
     const userCred = await createUserWithEmailAndPassword(auth, normEmail, password);
     const fbUser = userCred.user;
 
@@ -81,17 +89,17 @@ export async function register({ name, email, password, phone = '', district = '
       createdAt: new Date().toISOString(),
     };
 
-    try {
-      await setDoc(doc(db, 'users', fbUser.uid), profileData, { merge: true });
-    } catch (dbErr) {
-      console.warn('Firestore setDoc notice (account created in auth):', dbErr);
-    }
-
+    // 2. Set current user immediately for fast UI feedback (< 250ms)
     current = profileData;
     try {
       localStorage.setItem(SESSION_KEY, JSON.stringify(current));
     } catch {}
     notifyListeners();
+
+    // 3. Save profile to cloud database in background (non-blocking)
+    withTimeout(set(ref(rtdb, `users/${fbUser.uid}/profile`), profileData), 3000).catch((err) => {
+      console.warn('Background profile cloud sync notice:', err.message);
+    });
 
     return { ok: true, user: current };
   } catch (err) {
@@ -129,10 +137,11 @@ export async function login(email, password) {
   if (!normEmail || !password) return null;
 
   try {
+    // 1. Authenticate with Firebase Auth (Lightning fast ~ 200ms)
     const userCred = await signInWithEmailAndPassword(auth, normEmail, password);
     const fbUser = userCred.user;
 
-    let profileData = {
+    const baseUser = {
       id: fbUser.uid,
       name: fbUser.displayName || normEmail.split('@')[0],
       email: normEmail,
@@ -141,20 +150,27 @@ export async function login(email, password) {
       state: '',
     };
 
-    try {
-      const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
-      if (userDoc.exists()) {
-        profileData = { ...profileData, ...userDoc.data() };
-      }
-    } catch (e) {
-      console.warn('Firestore profile fetch notice:', e);
-    }
-
-    current = profileData;
+    // 2. Log in immediately without waiting for database roundtrip
+    current = baseUser;
     try {
       localStorage.setItem(SESSION_KEY, JSON.stringify(current));
     } catch {}
     notifyListeners();
+
+    // 3. Fetch enhanced cloud profile in background and update
+    withTimeout(get(ref(rtdb, `users/${fbUser.uid}/profile`)), 2500)
+      .then((snapshot) => {
+        if (snapshot && snapshot.exists()) {
+          current = { ...baseUser, ...snapshot.val() };
+          try {
+            localStorage.setItem(SESSION_KEY, JSON.stringify(current));
+          } catch {}
+          notifyListeners();
+        }
+      })
+      .catch((e) => {
+        console.warn('Background profile fetch notice:', e.message);
+      });
 
     return current;
   } catch (err) {
@@ -177,9 +193,9 @@ export async function logout() {
 }
 
 // Background session synchronization with Firebase Auth state
-onAuthStateChanged(auth, async (fbUser) => {
+onAuthStateChanged(auth, (fbUser) => {
   if (fbUser) {
-    let profileData = {
+    const baseUser = {
       id: fbUser.uid,
       name: fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Farmer'),
       email: fbUser.email || '',
@@ -188,20 +204,26 @@ onAuthStateChanged(auth, async (fbUser) => {
       state: '',
     };
 
-    try {
-      const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
-      if (userDoc.exists()) {
-        profileData = { ...profileData, ...userDoc.data() };
-      }
-    } catch (e) {
-      console.warn('Firestore profile fetch notice:', e);
+    if (!current || current.id !== fbUser.uid) {
+      current = baseUser;
+      try {
+        localStorage.setItem(SESSION_KEY, JSON.stringify(current));
+      } catch {}
+      notifyListeners();
     }
 
-    current = profileData;
-    try {
-      localStorage.setItem(SESSION_KEY, JSON.stringify(current));
-    } catch {}
-    notifyListeners();
+    // Try fetching profile from cloud database
+    withTimeout(get(ref(rtdb, `users/${fbUser.uid}/profile`)), 2500)
+      .then((snapshot) => {
+        if (snapshot && snapshot.exists()) {
+          current = { ...baseUser, ...snapshot.val() };
+          try {
+            localStorage.setItem(SESSION_KEY, JSON.stringify(current));
+          } catch {}
+          notifyListeners();
+        }
+      })
+      .catch(() => {});
   } else {
     if (current && !auth.currentUser) {
       current = null;
