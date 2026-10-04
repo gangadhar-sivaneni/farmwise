@@ -21,6 +21,7 @@ export default function LoginPage({ initialMode = 'signin' }) {
   const [district, setDistrict] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -71,6 +72,8 @@ export default function LoginPage({ initialMode = 'signin' }) {
 
     const trimName = name.trim();
     const normEmail = email.trim().toLowerCase();
+    const trimPhone = phone.trim();
+    const trimDistrict = district.trim();
 
     if (!trimName) {
       setError({ en: 'Please enter your full name.', te: 'దయచేసి మీ పూర్తి పేరు నమోదు చేయండి.' });
@@ -80,6 +83,20 @@ export default function LoginPage({ initialMode = 'signin' }) {
       setError({
         en: 'Please enter a valid Gmail / Email address.',
         te: 'సరైన ఈమెయిల్ లేదా జిమెయిల్ చిరునామా ఇవ్వండి.',
+      });
+      return;
+    }
+    if (!trimPhone) {
+      setError({
+        en: 'Please enter your phone number.',
+        te: 'దయచేసి మీ ఫోన్ నంబర్ నమోదు చేయండి.',
+      });
+      return;
+    }
+    if (!trimDistrict) {
+      setError({
+        en: 'Please enter your district.',
+        te: 'దయచేసి మీ జిల్లా నమోదు చేయండి.',
       });
       return;
     }
@@ -97,14 +114,21 @@ export default function LoginPage({ initialMode = 'signin' }) {
       });
       return;
     }
+    if (!acceptTerms) {
+      setError({
+        en: 'Please accept the Terms & Conditions to create an account.',
+        te: 'ఖాతాను సృష్టించడానికి దయచేసి నిబంధనలు & షరతులను అంగీకరించండి.',
+      });
+      return;
+    }
 
     setBusy(true);
     const res = await register({
       name: trimName,
       email: normEmail,
       password,
-      phone: phone.trim(),
-      district: district.trim(),
+      phone: trimPhone,
+      district: trimDistrict,
     });
     setBusy(false);
 
@@ -116,6 +140,16 @@ export default function LoginPage({ initialMode = 'signin' }) {
     navigate('/app/overview', { replace: true });
     showToast(W.welcome);
   };
+
+  const allFieldsFilled = Boolean(
+    name.trim() &&
+    email.trim() &&
+    phone.trim() &&
+    district.trim() &&
+    password &&
+    confirmPassword
+  );
+  const canSignUp = allFieldsFilled && acceptTerms;
 
 
   return (
@@ -282,123 +316,174 @@ export default function LoginPage({ initialMode = 'signin' }) {
                   })}
                 </p>
 
-                <div className="login-fields-scroll">
-                <div className="fld">
-                  <label htmlFor="signup-name">{L({ en: 'Full Name *', te: 'పూర్తి పేరు *' })}</label>
-                  <div className="inp">
-                    <input
-                      id="signup-name"
-                      type="text"
-                      autoComplete="name"
-                      placeholder="e.g. Gangadhar Sivaneni"
-                      value={name}
-                      onChange={(e) => {
-                        setName(e.target.value);
-                        setError(null);
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="fld">
-                  <label htmlFor="signup-email">{L({ en: 'Email / Gmail *', te: 'ఈమెయిల్ / జిమెయిల్ *' })}</label>
-                  <div className="inp">
-                    <input
-                      id="signup-email"
-                      type="email"
-                      autoComplete="email"
-                      autoCapitalize="none"
-                      spellCheck={false}
-                      placeholder="farmer@gmail.com"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        setError(null);
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div className="fld">
-                    <label htmlFor="signup-phone">{L({ en: 'Phone Number', te: 'ఫోన్ నంబర్' })}</label>
-                    <div className="inp">
+                <div className="login-fields-scroll" style={{ width: '100%', boxSizing: 'border-box' }}>
+                  <div className="fld" style={{ width: '100%', boxSizing: 'border-box' }}>
+                    <label htmlFor="signup-name">{L({ en: 'Full Name *', te: 'పూర్తి పేరు *' })}</label>
+                    <div className="inp" style={{ width: '100%', boxSizing: 'border-box' }}>
                       <input
-                        id="signup-phone"
-                        type="tel"
-                        autoComplete="tel"
-                        placeholder="9876543210"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="fld">
-                    <label htmlFor="signup-district">{L({ en: 'District', te: 'జిల్లా' })}</label>
-                    <div className="inp">
-                      <input
-                        id="signup-district"
+                        id="signup-name"
                         type="text"
-                        placeholder="e.g. Warangal"
-                        value={district}
-                        onChange={(e) => setDistrict(e.target.value)}
+                        autoComplete="name"
+                        placeholder="e.g. Gangadhar Sivaneni"
+                        value={name}
+                        onChange={(e) => {
+                          setName(e.target.value);
+                          setError(null);
+                        }}
+                        style={{ width: '100%', boxSizing: 'border-box' }}
                       />
+                    </div>
+                  </div>
+
+                  <div className="fld" style={{ width: '100%', boxSizing: 'border-box' }}>
+                    <label htmlFor="signup-email">{L({ en: 'Email / Gmail *', te: 'ఈమెయిల్ / జిమెయిల్ *' })}</label>
+                    <div className="inp" style={{ width: '100%', boxSizing: 'border-box' }}>
+                      <input
+                        id="signup-email"
+                        type="email"
+                        autoComplete="email"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        placeholder="farmer@gmail.com"
+                        value={email}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          setError(null);
+                        }}
+                        style={{ width: '100%', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '10px', width: '100%', boxSizing: 'border-box' }}>
+                    <div className="fld" style={{ minWidth: 0, width: '100%', boxSizing: 'border-box' }}>
+                      <label htmlFor="signup-phone">{L({ en: 'Phone Number *', te: 'ఫోన్ నంబర్ *' })}</label>
+                      <div className="inp" style={{ width: '100%', boxSizing: 'border-box' }}>
+                        <input
+                          id="signup-phone"
+                          type="tel"
+                          autoComplete="tel"
+                          placeholder="9876543210"
+                          value={phone}
+                          onChange={(e) => {
+                            setPhone(e.target.value);
+                            setError(null);
+                          }}
+                          style={{ width: '100%', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="fld" style={{ minWidth: 0, width: '100%', boxSizing: 'border-box' }}>
+                      <label htmlFor="signup-district">{L({ en: 'District *', te: 'జిల్లా *' })}</label>
+                      <div className="inp" style={{ width: '100%', boxSizing: 'border-box' }}>
+                        <input
+                          id="signup-district"
+                          type="text"
+                          placeholder="e.g. Warangal"
+                          value={district}
+                          onChange={(e) => {
+                            setDistrict(e.target.value);
+                            setError(null);
+                          }}
+                          style={{ width: '100%', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="fld" style={{ width: '100%', boxSizing: 'border-box' }}>
+                    <label htmlFor="signup-password">{L({ en: 'Create Password *', te: 'పాస్‌వర్డ్ రూపొందించండి *' })}</label>
+                    <div className="inp" style={{ width: '100%', boxSizing: 'border-box' }}>
+                      <input
+                        id="signup-password"
+                        type={showPw ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        placeholder="Min 6 characters"
+                        value={password}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          setError(null);
+                        }}
+                        style={{ width: '100%', boxSizing: 'border-box' }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-ghost sm pw-toggle"
+                        onClick={() => setShowPw((v) => !v)}
+                        aria-pressed={showPw}
+                        aria-controls="signup-password"
+                      >
+                        <Icon name="eye" className="ico sm" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="fld" style={{ width: '100%', boxSizing: 'border-box' }}>
+                    <label htmlFor="signup-confirmpassword">{L({ en: 'Confirm Password *', te: 'పాస్‌వర్డ్ ధృవీకరించండి *' })}</label>
+                    <div className="inp" style={{ width: '100%', boxSizing: 'border-box' }}>
+                      <input
+                        id="signup-confirmpassword"
+                        type={showConfirmPw ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        placeholder="Repeat your password"
+                        value={confirmPassword}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value);
+                          setError(null);
+                        }}
+                        style={{ width: '100%', boxSizing: 'border-box' }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-ghost sm pw-toggle"
+                        onClick={() => setShowConfirmPw((v) => !v)}
+                        aria-pressed={showConfirmPw}
+                        aria-controls="signup-confirmpassword"
+                      >
+                        <Icon name="eye" className="ico sm" />
+                      </button>
                     </div>
                   </div>
                 </div>
 
-                <div className="fld">
-                  <label htmlFor="signup-password">{L({ en: 'Create Password *', te: 'పాస్‌వర్డ్ రూపొందించండి *' })}</label>
-                  <div className="inp">
+                <div style={{ marginTop: '12px', marginBottom: '6px', width: '100%', boxSizing: 'border-box' }}>
+                  <label
+                    htmlFor="signup-terms"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      fontSize: '13px',
+                      color: 'var(--ink-2)',
+                      lineHeight: '1.4',
+                    }}
+                  >
                     <input
-                      id="signup-password"
-                      type={showPw ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      placeholder="Min 6 characters"
-                      value={password}
+                      id="signup-terms"
+                      type="checkbox"
+                      checked={acceptTerms}
                       onChange={(e) => {
-                        setPassword(e.target.value);
+                        setAcceptTerms(e.target.checked);
                         setError(null);
                       }}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-ghost sm pw-toggle"
-                      onClick={() => setShowPw((v) => !v)}
-                      aria-pressed={showPw}
-                      aria-controls="signup-password"
-                    >
-                      <Icon name="eye" className="ico sm" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="fld">
-                  <label htmlFor="signup-confirmpassword">{L({ en: 'Confirm Password *', te: 'పాస్‌వర్డ్ ధృవీకరించండి *' })}</label>
-                  <div className="inp">
-                    <input
-                      id="signup-confirmpassword"
-                      type={showConfirmPw ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      placeholder="Repeat your password"
-                      value={confirmPassword}
-                      onChange={(e) => {
-                        setConfirmPassword(e.target.value);
-                        setError(null);
+                      style={{
+                        width: '18px',
+                        height: '18px',
+                        accentColor: 'var(--brand, #2e7d32)',
+                        cursor: 'pointer',
+                        flexShrink: 0,
                       }}
                     />
-                    <button
-                      type="button"
-                      className="btn btn-ghost sm pw-toggle"
-                      onClick={() => setShowConfirmPw((v) => !v)}
-                      aria-pressed={showConfirmPw}
-                      aria-controls="signup-confirmpassword"
-                    >
-                      <Icon name="eye" className="ico sm" />
-                    </button>
-                  </div>
-                </div>
+                    <span>
+                      {L({
+                        en: 'I accept the Terms & Conditions and Privacy Policy *',
+                        te: 'నేను నిబంధనలు & షరతులు మరియు గోప్యతా విధానాన్ని అంగీకరిస్తున్నాను *',
+                      })}
+                    </span>
+                  </label>
                 </div>
 
                 {error && (
@@ -410,8 +495,16 @@ export default function LoginPage({ initialMode = 'signin' }) {
                 <button
                   type="submit"
                   className="btn btn-dark"
-                  style={{ width: '100%', minHeight: '48px', marginTop: '8px', fontSize: '15.5px' }}
-                  disabled={busy}
+                  style={{
+                    width: '100%',
+                    minHeight: '48px',
+                    marginTop: '8px',
+                    fontSize: '15.5px',
+                    opacity: canSignUp && !busy ? 1 : 0.55,
+                    cursor: canSignUp && !busy ? 'pointer' : 'not-allowed',
+                    transition: 'opacity 0.2s, transform 0.1s',
+                  }}
+                  disabled={!canSignUp || busy}
                 >
                   <span>{L(busy ? { en: 'Creating Account...', te: 'ఖాతా సృష్టించబడుతోంది...' } : { en: 'Create Account & Continue', te: 'ఖాతా సృష్టించి కొనసాగించండి' })}</span>
                   <Icon name="arrow" className="ico sm" />
