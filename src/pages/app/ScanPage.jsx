@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Icon from '../../components/common/Icon';
 import { useLanguage } from '../../context/LanguageContext';
 import { useApp } from '../../context/AppContext';
+import { getIdToken } from '../../services/authService';
 import { CROPS } from '../../data/cropsData';
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB limit
@@ -226,9 +227,15 @@ export default function ScanPage() {
     });
 
     try {
+      const idToken = await getIdToken().catch(() => null);
+      const headers = { 'Content-Type': 'application/json' };
+      if (idToken) {
+        headers['Authorization'] = `Bearer ${idToken}`;
+      }
+
       const response = await fetch('/api/analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           image: photoBase64,
           mimeType: photoMimeType,

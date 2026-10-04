@@ -1,5 +1,35 @@
 import { isKeyConfigured, analyzeImageWithGemini } from './geminiService.js';
 
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 15; // Max 15 requests per minute
+const rateLimitMap = new Map();
+
+function isRateLimited(key) {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS };
+  if (now > entry.resetAt) {
+    entry.count = 1;
+    entry.resetAt = now + RATE_LIMIT_WINDOW_MS;
+    rateLimitMap.set(key, entry);
+    return false;
+  }
+  entry.count++;
+  rateLimitMap.set(key, entry);
+  return entry.count > MAX_REQUESTS_PER_WINDOW;
+}
+
+function decodeJwtPayload(token) {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const jsonStr = Buffer.from(base64, 'base64').toString('utf8');
+    return JSON.parse(jsonStr);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Node/Connect compatible middleware for handling FarmWise plant health API endpoints
  */
@@ -10,7 +40,7 @@ export function createApiMiddleware(getApiKey) {
     // CORS & JSON Headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS') {
       res.statusCode = 204;
@@ -44,6 +74,53 @@ export function createApiMiddleware(getApiKey) {
         res.end(JSON.stringify({
           success: false,
           error: 'GEMINI_API_KEY is not configured. Please set your key in .env for real-time AI scanning.'
+        }));
+        return;
+      }
+
+      // Security: Require Firebase Authentication token
+      const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        res.statusCode = 401;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({
+          success: false,
+          error: 'Authentication required. Please sign in to scan crops.'
+        }));
+        return;
+      }
+
+      const token = authHeader.slice(7).trim();
+      const payload = decodeJwtPayload(token);
+      if (!payload || !payload.sub) {
+        res.statusCode = 401;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({
+          success: false,
+          error: 'Invalid authentication session. Please sign in again.'
+        }));
+        return;
+      }
+
+      if (payload.exp && payload.exp * 1000 < Date.now()) {
+        res.statusCode = 401;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({
+          success: false,
+          error: 'Authentication session expired. Please refresh or sign in again.'
+        }));
+        return;
+      }
+
+      // Rate Limiting per authenticated user / client IP
+      const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'client';
+      const rateLimitKey = `${payload.sub}_${clientIp}`;
+      if (isRateLimited(rateLimitKey)) {
+        res.statusCode = 429;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({
+          success: false,
+          error: 'Rate limit exceeded. Please wait a moment before running another scan.'
         }));
         return;
       }

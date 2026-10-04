@@ -1,0 +1,26 @@
+{
+  "run_id": "farmwise-full-audit-run-1",
+  "repo": "farmwise",
+  "target": "c:\\Users\\ganga\\OneDrive\\Desktop\\farmwise",
+  "source_ref": "709c21f5870f16b81b3ae0c9efe1eaf4656f2264",
+  "profile": "standard",
+  "scope_paths": [
+    "api",
+    "server",
+    "src",
+    "vercel.json",
+    "package.json"
+  ],
+  "budget": null,
+  "execution_policy": "sandboxed-source-and-local-only",
+  "selected_companion_blocks": [
+    "WEB-PROTOCOL-AND-AUTH.md",
+    "DATA-ISOLATION-AND-LIFECYCLE.md",
+    "AI-AND-LLM.md",
+    "CLOUD-AND-DEPLOYMENT.md",
+    "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md"
+  ],
+  "prior_run_paths": [],
+  "shared_file_owners": {},
+  "run_status": "complete"
+}

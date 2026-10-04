@@ -783,3 +783,15 @@ onAuthStateChanged(auth, (fbUser) => {
     }
   }
 });
+
+export async function getIdToken(forceRefresh = false) {
+  if (auth.currentUser) {
+    try {
+      return await auth.currentUser.getIdToken(forceRefresh);
+    } catch (err) {
+      console.warn('Failed to retrieve Firebase ID token:', err);
+      return null;
+    }
+  }
+  return null;
+}
