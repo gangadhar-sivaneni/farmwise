@@ -157,12 +157,12 @@ export default function LoginPage({ initialMode = 'signin' }) {
   /* =========================================================
      2. GOOGLE AUTHENTICATION (Login & Sign Up)
      ========================================================= */
-  const handleGoogleAuth = async () => {
+  const handleGoogleAuth = async (isRegistration = false) => {
     if (busy || googleBusy) return;
     setError(null);
     setGoogleBusy(true);
 
-    const res = await loginWithGoogle();
+    const res = await loginWithGoogle(isRegistration);
     setGoogleBusy(false);
 
     if (res.cancelled) return; // user closed popup
@@ -172,7 +172,14 @@ export default function LoginPage({ initialMode = 'signin' }) {
       return;
     }
 
-    // Google accounts come verified
+    // If one-time Gmail verification is required
+    if (res.needsVerification || res.emailVerified === false) {
+      setPendingEmail(res.user?.email || '');
+      setMode('verify-pending');
+      setCooldown(60);
+      return;
+    }
+
     navigate('/app/overview', { replace: true });
     showToast(W.welcome);
   };
@@ -461,7 +468,7 @@ export default function LoginPage({ initialMode = 'signin' }) {
 
                 {/* Google Sign-in Button */}
                 <GoogleAuthButton
-                  onClick={handleGoogleAuth}
+                  onClick={() => handleGoogleAuth(false)}
                   loading={googleBusy}
                   disabled={busy}
                 />
@@ -594,7 +601,7 @@ export default function LoginPage({ initialMode = 'signin' }) {
 
                 {/* Google Sign-up Option */}
                 <GoogleAuthButton
-                  onClick={handleGoogleAuth}
+                  onClick={() => handleGoogleAuth(true)}
                   loading={googleBusy}
                   disabled={busy}
                   text={L({ en: 'Sign up with Google', te: 'గూగుల్‌తో నమోదు చేసుకోండి' })}

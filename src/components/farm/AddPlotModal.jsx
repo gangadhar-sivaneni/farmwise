@@ -66,6 +66,21 @@ export default function AddPlotModal() {
     if (d && !d.open) d.showModal();
   }, [editor]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Automatically update coordinates via GPS when creating a new plot
+  useEffect(() => {
+    if (!isEdit && editor && (!f.lat || !f.lng)) {
+      getUserLocation()
+        .then((c) => {
+          setF((s) => ({
+            ...s,
+            lat: s.lat || c.latitude.toFixed(6),
+            lng: s.lng || c.longitude.toFixed(6),
+          }));
+        })
+        .catch(() => {});
+    }
+  }, [editor, isEdit]);
+
   const m = useMemo(() => (points ? measure(points) : null), [points]);
   const boundaryErr = useMemo(() => (points ? validateBoundary(points) : null), [points]);
   const mapCenter = useMemo(() => {
@@ -264,7 +279,6 @@ export default function AddPlotModal() {
                   <div className="pm-ll">
                     <div className="inp"><input id="pf-lat" inputMode="decimal" value={f.lat} onChange={set('lat')} placeholder="17.9689" aria-label="Latitude" /></div>
                     <div className="inp"><input inputMode="decimal" value={f.lng} onChange={set('lng')} placeholder="79.5941" aria-label="Longitude" /></div>
-                    <button type="button" className="btn sm" onClick={fillGps}><Icon name="pin" className="ico" /><span>GPS</span></button>
                   </div>)}
               </div>
               {f.area > 0 && <p className="muted">≈ {fmt(toSqm(f.area, f.areaUnit) / 4046.8564224)} {L({ en: 'acres', te: 'ఎకరాలు' })} · {fmt(toSqm(f.area, f.areaUnit) / 10000)} ha</p>}

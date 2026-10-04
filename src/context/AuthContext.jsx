@@ -23,8 +23,8 @@ export function AuthProvider({ children }) {
     return res;
   }, []);
 
-  const loginWithGoogle = useCallback(async () => {
-    const res = await auth.loginWithGoogle();
+  const loginWithGoogle = useCallback(async (isRegistration = false) => {
+    const res = await auth.loginWithGoogle(isRegistration);
     if (res.ok && res.user) setUser(res.user);
     return res;
   }, []);

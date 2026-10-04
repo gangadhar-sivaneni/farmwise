@@ -71,11 +71,16 @@ export function ukey(name) {
  */
 function buildUserObject(fbUser, extra = {}) {
   const providerId = fbUser.providerData?.[0]?.providerId || extra.authProvider || 'password';
+  // Respect explicit verification status in extra profile if available
+  const isVerified = extra.emailVerified !== undefined
+    ? Boolean(extra.emailVerified)
+    : Boolean(fbUser.emailVerified);
+
   return {
     id: fbUser.uid,
     name: fbUser.displayName || extra.name || (fbUser.email ? fbUser.email.split('@')[0] : 'Farmer'),
     email: fbUser.email || extra.email || '',
-    emailVerified: Boolean(fbUser.emailVerified || providerId === 'google.com' || extra.emailVerified),
+    emailVerified: isVerified,
     authProvider: providerId,
     phone: extra.phone || fbUser.phoneNumber || '',
     district: extra.district || '',
@@ -234,8 +239,9 @@ export async function login(email, password, rememberMe = true) {
 
 /**
  * Google OAuth Sign In & Registration
+ * Enforces one-time email verification for registrations as requested.
  */
-export async function loginWithGoogle() {
+export async function loginWithGoogle(isRegistration = false) {
   try {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
@@ -247,24 +253,62 @@ export async function loginWithGoogle() {
       id: fbUser.uid,
       name: fbUser.displayName || 'Farmer',
       email: fbUser.email || '',
-      emailVerified: true,
       authProvider: 'google.com',
       photoURL: fbUser.photoURL || null,
       createdAt: fbUser.metadata?.creationTime || new Date().toISOString(),
     };
 
+    let alreadyVerifiedOnce = false;
+    let isNewUser = false;
+
     // Check if user already has an existing profile in cloud database
     try {
       const snap = await withTimeout(get(ref(rtdb, `users/${fbUser.uid}/profile`)), 3000);
       if (snap && snap.exists()) {
-        profileData = { ...profileData, ...snap.val(), emailVerified: true };
+        const val = snap.val();
+        alreadyVerifiedOnce = Boolean(val.emailVerified);
+        profileData = { ...profileData, ...val };
       } else {
-        // Save initial profile for new Google user
-        withTimeout(set(ref(rtdb, `users/${fbUser.uid}/profile`), profileData), 3500).catch(() => {});
+        isNewUser = true;
+        alreadyVerifiedOnce = false;
       }
     } catch (e) {
-      console.warn('Google profile fetch/save notice:', e.message);
+      console.warn('Google profile fetch notice:', e.message);
     }
+
+    // When user selects Google sign-in while registering, or is a first-time Google user who hasn't verified:
+    if (!alreadyVerifiedOnce && (isRegistration || isNewUser)) {
+      // Send real email verification link to their Gmail
+      try {
+        const actionCodeSettings = {
+          url: window.location.origin + '/login?verified=true',
+          handleCodeInApp: true,
+        };
+        await sendEmailVerification(fbUser, actionCodeSettings);
+      } catch (verErr) {
+        console.warn('sendEmailVerification for Google notice:', verErr);
+      }
+
+      profileData.emailVerified = false;
+      withTimeout(set(ref(rtdb, `users/${fbUser.uid}/profile`), profileData), 3500).catch(() => {});
+
+      current = buildUserObject(fbUser, profileData);
+      try {
+        localStorage.setItem(SESSION_KEY, JSON.stringify(current));
+      } catch {}
+      notifyListeners();
+
+      return {
+        ok: true,
+        user: current,
+        emailVerified: false,
+        needsVerification: true,
+      };
+    }
+
+    // User has already completed the one-time verification in the past: permit direct access
+    profileData.emailVerified = true;
+    withTimeout(set(ref(rtdb, `users/${fbUser.uid}/profile`), profileData), 3500).catch(() => {});
 
     current = buildUserObject(fbUser, profileData);
     try {
@@ -272,7 +316,7 @@ export async function loginWithGoogle() {
     } catch {}
     notifyListeners();
 
-    return { ok: true, user: current, emailVerified: true };
+    return { ok: true, user: current, emailVerified: true, needsVerification: false };
   } catch (err) {
     console.error('Google Auth error:', err);
     if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {

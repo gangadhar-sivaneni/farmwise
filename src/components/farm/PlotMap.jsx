@@ -48,6 +48,24 @@ export default function PlotMap({ points, center, onChange }) {
     return () => { clearTimeout(t); m.remove(); map.current = null; layer.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Automatically update map to user location via GPS as soon as permissions are accepted
+  useEffect(() => {
+    let active = true;
+    if (!points || points.length === 0) {
+      getUserLocation()
+        .then((c) => {
+          if (!active || !map.current) return;
+          if (!points || points.length === 0) {
+            map.current.setView([c.latitude, c.longitude], 17);
+          }
+        })
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // show a boundary that came from outside (saved plot or uploaded file)
   useEffect(() => {
     const m = map.current;
@@ -135,9 +153,6 @@ export default function PlotMap({ points, center, onChange }) {
           <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && go(e)} enterKeyHint="search" placeholder={tr({ en: 'Village, town or 17.97, 79.59', te: 'గ్రామం, పట్టణం లేదా 17.97, 79.59' })} aria-label={tr({ en: 'Search place or coordinates', te: 'ప్రదేశం లేదా నిరూపకాలు వెతకండి' })} />
         </div>
         <button className="btn sm" type="button" onClick={go}>{tr({ en: 'Go', te: 'వెళ్ళు' })}</button>
-        <button className="btn sm" type="button" onClick={gps} title={tr({ en: 'Use my location', te: 'నా స్థానం' })}>
-          <Icon name="pin" className="ico" /><span>{tr({ en: 'GPS', te: 'GPS' })}</span>
-        </button>
       </div>
       <div ref={box} className="pmap-box" />
       <div className="pmap-tools">
@@ -160,7 +175,7 @@ export default function PlotMap({ points, center, onChange }) {
           ? { en: 'Tap each corner of your field in order. Tap the first point (or “Join & finish”) to close the shape.', te: 'మీ పొలం ప్రతి మూలను వరుసగా నొక్కండి. ఆకారం మూసేందుకు మొదటి బిందువును (లేదా “కలిపి ముగించండి”) నొక్కండి.' }
           : points
             ? { en: 'Drag a corner to move it, drag a middle dot to add a corner, right-click / long-press a corner to remove it.', te: 'మూలను జరపడానికి లాగండి, కొత్త మూలకు మధ్య చుక్కను లాగండి, తొలగించడానికి మూలపై రైట్-క్లిక్ / ఎక్కువసేపు నొక్కండి.' }
-            : { en: 'Find your field (search or GPS), then press “Start drawing”. Switch Satellite / Map at the top right.', te: 'మీ పొలాన్ని కనుగొని (వెతకండి లేదా GPS), “గీయడం ప్రారంభించండి” నొక్కండి. ఉపగ్రహం / మ్యాప్ పైన కుడివైపు మార్చండి.' })}
+            : { en: 'Location updated automatically via GPS. Or search village above, then press “Start drawing”. Switch Satellite / Map at top right.', te: 'GPS ద్వారా స్థానం స్వయంచాలకంగా నవీకరించబడుతుంది. లేదా పైన గ్రామం పేరు వెతికి, “గీయడం ప్రారంభించండి” నొక్కండి.' })}
       </p>
     </div>
   );

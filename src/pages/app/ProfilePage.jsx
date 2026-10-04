@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Icon from '../../components/common/Icon';
 import { useLanguage } from '../../context/LanguageContext';
 import { useApp } from '../../context/AppContext';
@@ -16,18 +16,69 @@ const IRRIGATION = {
 };
 const REQ = { en: 'Required', te: 'తప్పనిసరి' };
 
-/** Farmer's personal details — saved per account (farmwise_user_<id>_profile). */
+function formatDateSafe(val, fallback = 'Recent') {
+  if (!val) return fallback;
+  try {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return fallback;
+    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  } catch {
+    return fallback;
+  }
+}
+
+/** Farmer's personal details — saved per account. */
 export default function ProfilePage() {
   const { L, showToast } = useLanguage();
   const { profile, saveProfile } = useApp();
   const { user, resendVerificationEmail, checkEmailVerified, changePassword } = useAuth();
-  
-  const [f, setF] = useState(() => ({
-    name: user?.name || '', phone: user?.phone || '', village: '', mandal: '', district: user?.district || '', state: user?.state || 'Telangana', pin: '',
-    landAcres: '', experience: '', crops: [], irrigation: 'borewell', soil: 'loamy', farmerId: '',
-    ...profile,
-  }));
+
+  const [f, setF] = useState(() => {
+    const p = profile || {};
+    const safeCrops = Array.isArray(p.crops) ? p.crops : [];
+    return {
+      name: p.name || user?.name || '',
+      phone: p.phone || user?.phone || '',
+      village: p.village || '',
+      mandal: p.mandal || '',
+      district: p.district || user?.district || '',
+      state: p.state || user?.state || 'Telangana',
+      pin: p.pin || '',
+      landAcres: p.landAcres || '',
+      experience: p.experience || '',
+      crops: safeCrops,
+      irrigation: p.irrigation || 'borewell',
+      soil: p.soil || 'loamy',
+      farmerId: p.farmerId || '',
+    };
+  });
+
   const [errors, setErrors] = useState({});
+
+  // Sync profile form state when profile or user asynchronously loads
+  useEffect(() => {
+    if (!profile && !user) return;
+    setF((prev) => {
+      const p = profile || {};
+      const safeCrops = Array.isArray(p.crops) ? p.crops : [];
+      return {
+        ...prev,
+        name: prev.name || p.name || user?.name || '',
+        phone: prev.phone || p.phone || user?.phone || '',
+        village: prev.village || p.village || '',
+        mandal: prev.mandal || p.mandal || '',
+        district: prev.district || p.district || user?.district || '',
+        state: prev.state || p.state || user?.state || 'Telangana',
+        pin: prev.pin || p.pin || '',
+        landAcres: prev.landAcres || p.landAcres || '',
+        experience: prev.experience || p.experience || '',
+        crops: Array.isArray(prev.crops) && prev.crops.length > 0 ? prev.crops : safeCrops,
+        irrigation: prev.irrigation || p.irrigation || 'borewell',
+        soil: prev.soil || p.soil || 'loamy',
+        farmerId: prev.farmerId || p.farmerId || '',
+      };
+    });
+  }, [profile, user]);
 
   // Account Security state
   const [showChangePw, setShowChangePw] = useState(false);
@@ -40,7 +91,7 @@ export default function ProfilePage() {
   const [checkingVerify, setCheckingVerify] = useState(false);
 
   // Cooldown timer for resending verification email
-  React.useEffect(() => {
+  useEffect(() => {
     if (resendCooldown <= 0) return;
     const t = setInterval(() => setResendCooldown((c) => Math.max(0, c - 1)), 1000);
     return () => clearInterval(t);
@@ -83,7 +134,7 @@ export default function ProfilePage() {
     setPwSuccess(false);
 
     if (!newPw || newPw.length < 6) {
-      setPwError({ en: 'Password must be at least 6 characters.', te: 'పాస్‌వర్డ్ కనీసం 6 అక్షరాలు ఉండాలి.' });
+      setPwError({ en: 'New password must be at least 6 characters.', te: 'పాస్‌వర్డ్ కనీసం 6 అక్షరాలు ఉండాలి.' });
       return;
     }
     if (newPw !== confirmNewPw) {
@@ -105,16 +156,31 @@ export default function ProfilePage() {
     }
   };
 
+  const set = (k) => (e) => {
+    setF((s) => ({ ...s, [k]: e.target.value }));
+    setErrors((s) => ({ ...s, [k]: null }));
+  };
+
+  const toggleCrop = (id) =>
+    setF((s) => {
+      const cropsArr = Array.isArray(s.crops) ? s.crops : [];
+      return {
+        ...s,
+        crops: cropsArr.includes(id) ? cropsArr.filter((c) => c !== id) : [...cropsArr, id],
+      };
+    });
+
   const submit = (e) => {
     e.preventDefault();
     const err = {};
-    for (const k of ['name', 'village', 'district', 'state']) if (!String(f[k]).trim()) err[k] = REQ;
-    const phone = f.phone.replace(/\D/g, '');
+    for (const k of ['name', 'village', 'district', 'state']) if (!String(f[k] || '').trim()) err[k] = REQ;
+    const phone = String(f.phone || '').replace(/\D/g, '');
     if (!/^[6-9]\d{9}$/.test(phone)) err.phone = { en: 'Enter a 10-digit Indian mobile number.', te: '10 అంకెల మొబైల్ నంబర్ ఇవ్వండి.' };
-    if (f.pin && !/^[1-9]\d{5}$/.test(f.pin.trim())) err.pin = { en: 'PIN code has 6 digits.', te: 'పిన్ కోడ్ 6 అంకెలు.' };
+    if (f.pin && !/^[1-9]\d{5}$/.test(String(f.pin).trim())) err.pin = { en: 'PIN code has 6 digits.', te: 'పిన్ కోడ్ 6 అంకెలు.' };
     if (!(Number(f.landAcres) > 0)) err.landAcres = { en: 'Enter your total land in acres.', te: 'మొత్తం భూమి ఎకరాల్లో ఇవ్వండి.' };
     if (f.experience !== '' && !(Number(f.experience) >= 0 && Number(f.experience) <= 80)) err.experience = { en: 'Enter years between 0 and 80.', te: '0–80 మధ్య సంవత్సరాలు ఇవ్వండి.' };
-    if (!f.crops.length) err.crops = { en: 'Pick at least one crop you grow.', te: 'మీరు పండించే కనీసం ఒక పంట ఎంచుకోండి.' };
+    const cropsArr = Array.isArray(f.crops) ? f.crops : [];
+    if (!cropsArr.length) err.crops = { en: 'Pick at least one crop you grow.', te: 'మీరు పండించే కనీసం ఒక పంట ఎంచుకోండి.' };
     setErrors(err);
     if (Object.values(err).some(Boolean)) {
       document.querySelector('.prof .err:not(:empty)')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -133,32 +199,36 @@ export default function ProfilePage() {
     </div>
   );
   const text = (k, label, { required, ...props } = {}) =>
-    fld(k, label, <div className="inp"><input id={`pr-${k}`} value={f[k]} onChange={set(k)} required={required} {...props} /></div>, required);
+    fld(k, label, <div className="inp"><input id={`pr-${k}`} value={f[k] || ''} onChange={set(k)} required={required} {...props} /></div>, required);
+
+  const selectedCrops = Array.isArray(f.crops) ? f.crops : [];
 
   return (
     <section className="panel page" data-page="profile" style={{ display: 'block' }}>
       <div className="page-h">
         <div>
           <h1>{L({ en: 'Your farmer profile', te: 'మీ రైతు ప్రొఫైల్' })}</h1>
-          <p>{L({ en: 'Fields marked * are required. Saved only for your account, in this browser.', te: '* గుర్తు ఉన్నవి తప్పనిసరి. మీ ఖాతాకు మాత్రమే, ఈ బ్రౌజర్‌లో సేవ్ అవుతుంది.' })}</p>
+          <p>{L({ en: 'Fields marked * are required. Saved securely for your account.', te: '* గుర్తు ఉన్నవి తప్పనిసరి. మీ ఖాతా కోసం భద్రంగా సేవ్ చేయబడుతుంది.' })}</p>
         </div>
         {profile?.updatedAt && (
-          <span className="pill ok"><i /><span>{L({ en: 'Saved', te: 'సేవ్ అయింది' })} · {new Date(profile.updatedAt).toLocaleDateString()}</span></span>
+          <span className="pill ok"><i /><span>{L({ en: 'Saved', te: 'సేవ్ అయింది' })} · {formatDateSafe(profile.updatedAt)}</span></span>
         )}
       </div>
 
       <form className="prof" onSubmit={submit} noValidate>
+        {/* PERSONAL DETAILS CARD */}
         <div className="card">
           <div className="card-h"><h3>{L({ en: 'Personal details', te: 'వ్యక్తిగత వివరాలు' })}</h3></div>
           <div className="pm-grid">
             {text('name', { en: 'Full name', te: 'పూర్తి పేరు' }, { required: true, autoComplete: 'name' })}
             {fld('phone', { en: 'Mobile number', te: 'మొబైల్ నంబర్' },
-              <div className="inp"><span className="pre">+91</span><input id="pr-phone" type="tel" inputMode="numeric" maxLength={10} autoComplete="tel-national" value={f.phone} onChange={(e) => { setF((s) => ({ ...s, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })); setErrors((s) => ({ ...s, phone: null })); }} /></div>, true)}
+              <div className="inp"><span className="pre">+91</span><input id="pr-phone" type="tel" inputMode="numeric" maxLength={10} autoComplete="tel-national" value={f.phone || ''} onChange={(e) => { setF((s) => ({ ...s, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })); setErrors((s) => ({ ...s, phone: null })); }} /></div>, true)}
             {text('farmerId', { en: 'Farmer ID / Pattadar passbook no. (optional)', te: 'రైతు ID / పట్టాదారు పాస్‌బుక్ నం. (ఐచ్ఛికం)' })}
             {text('experience', { en: 'Years of farming (optional)', te: 'వ్యవసాయ అనుభవం (సంవత్సరాలు, ఐచ్ఛికం)' }, { inputMode: 'numeric' })}
           </div>
         </div>
 
+        {/* ADDRESS CARD */}
         <div className="card">
           <div className="card-h"><h3>{L({ en: 'Address', te: 'చిరునామా' })}</h3></div>
           <div className="pm-grid">
@@ -170,17 +240,18 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* FARMING DETAILS CARD */}
         <div className="card">
           <div className="card-h"><h3>{L({ en: 'Farming details', te: 'వ్యవసాయ వివరాలు' })}</h3></div>
           <div className="pm-grid">
             {fld('landAcres', { en: 'Total land', te: 'మొత్తం భూమి' },
-              <div className="inp"><input id="pr-landAcres" inputMode="decimal" value={f.landAcres} onChange={set('landAcres')} /><span className="suf">{L({ en: 'acres', te: 'ఎకరాలు' })}</span></div>, true)}
+              <div className="inp"><input id="pr-landAcres" inputMode="decimal" value={f.landAcres || ''} onChange={set('landAcres')} /><span className="suf">{L({ en: 'acres', te: 'ఎకరాలు' })}</span></div>, true)}
             {fld('irrigation', { en: 'Main water source', te: 'ప్రధాన నీటి వనరు' },
-              <select id="pr-irrigation" className="select" value={f.irrigation} onChange={set('irrigation')}>
+              <select id="pr-irrigation" className="select" value={f.irrigation || 'borewell'} onChange={set('irrigation')}>
                 {Object.entries(IRRIGATION).map(([k, v]) => <option key={k} value={k}>{L(v)}</option>)}
               </select>)}
             {fld('soil', { en: 'Main soil type', te: 'ప్రధాన నేల రకం' },
-              <select id="pr-soil" className="select" value={f.soil} onChange={set('soil')}>
+              <select id="pr-soil" className="select" value={f.soil || 'loamy'} onChange={set('soil')}>
                 {Object.entries(LBL.soil).map(([k, v]) => <option key={k} value={k}>{L(v)}</option>)}
               </select>)}
           </div>
@@ -188,7 +259,7 @@ export default function ProfilePage() {
             <label id="pr-crops-l">{L({ en: 'Crops you grow', te: 'మీరు పండించే పంటలు' })}<span className="req" aria-hidden="true"> *</span></label>
             <div className="prof-crops" role="group" aria-labelledby="pr-crops-l">
               {CROPS.map((c) => (
-                <button key={c.id} type="button" className="chip-f" aria-pressed={f.crops.includes(c.id)} onClick={() => { toggleCrop(c.id); setErrors((s) => ({ ...s, crops: null })); }}>
+                <button key={c.id} type="button" className="chip-f" aria-pressed={selectedCrops.includes(c.id)} onClick={() => { toggleCrop(c.id); setErrors((s) => ({ ...s, crops: null })); }}>
                   {L(c.name)}
                 </button>
               ))}
@@ -277,7 +348,7 @@ export default function ProfilePage() {
                 {L({ en: 'Account Created', te: 'ఖాతా సృష్టించిన తేదీ' })}
               </span>
               <span style={{ fontSize: '14.5px', color: 'var(--ink)', fontWeight: '500' }}>
-                {user?.createdAt ? new Date(user.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'Recent'}
+                {formatDateSafe(user?.createdAt)}
               </span>
             </div>
 
