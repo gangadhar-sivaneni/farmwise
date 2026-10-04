@@ -1,4 +1,8 @@
 import { isKeyConfigured, analyzeImageWithGemini } from './geminiService.js';
+import { verifyFirebaseToken } from './firebaseToken.js';
+
+const FIREBASE_PROJECT_ID = process.env.VITE_FIREBASE_PROJECT_ID || 'farmwise-be0bd';
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 15; // Max 15 requests per minute
@@ -18,17 +22,6 @@ function isRateLimited(key) {
   return entry.count > MAX_REQUESTS_PER_WINDOW;
 }
 
-function decodeJwtPayload(token) {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const jsonStr = Buffer.from(base64, 'base64').toString('utf8');
-    return JSON.parse(jsonStr);
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Node/Connect compatible middleware for handling FarmWise plant health API endpoints
@@ -37,10 +30,7 @@ export function createApiMiddleware(getApiKey) {
   return async (req, res, next) => {
     const url = req.url?.split('?')[0];
 
-    // CORS & JSON Headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    // No CORS headers: the app calls these endpoints from its own origin, so other websites can't use them
 
     if (req.method === 'OPTIONS') {
       res.statusCode = 204;
@@ -91,7 +81,8 @@ export function createApiMiddleware(getApiKey) {
       }
 
       const token = authHeader.slice(7).trim();
-      const payload = decodeJwtPayload(token);
+      // signature, issuer, audience and expiry are all verified — a decoded-but-unverified token is not trusted
+      const payload = await verifyFirebaseToken(token, FIREBASE_PROJECT_ID);
       if (!payload || !payload.sub) {
         res.statusCode = 401;
         res.setHeader('Content-Type', 'application/json');
@@ -141,7 +132,7 @@ export function createApiMiddleware(getApiKey) {
           const payload = bodyText ? JSON.parse(bodyText) : {};
           const { image, mimeType, crop = '', lang = 'en' } = payload;
 
-          if (!image) {
+          if (typeof image !== 'string' || !image) {
             res.statusCode = 400;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({
@@ -151,13 +142,22 @@ export function createApiMiddleware(getApiKey) {
             return;
           }
 
-          // Run live, real-time Google Gemini vision analysis
+          const type = String(mimeType || 'image/jpeg').toLowerCase();
+          if (!IMAGE_TYPES.includes(type)) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: 'Please upload a JPEG, PNG, WebP or HEIC photo.' }));
+            return;
+          }
+
+          // Run live, real-time Google Gemini vision analysis.
+          // crop/lang go into the AI prompt: keep them short and plain so they can't smuggle instructions in.
           const analysisResult = await analyzeImageWithGemini({
             apiKey,
             base64Data: image,
-            mimeType: mimeType || 'image/jpeg',
-            cropHint: crop,
-            lang: lang || 'en'
+            mimeType: type,
+            cropHint: String(crop).replace(/[^\p{L}\p{N} ()/-]/gu, '').slice(0, 40),
+            lang: lang === 'te' ? 'te' : 'en'
           });
 
           res.setHeader('Content-Type', 'application/json');
@@ -173,7 +173,8 @@ export function createApiMiddleware(getApiKey) {
           res.statusCode = 500;
           res.end(JSON.stringify({
             success: false,
-            error: err.message || 'Error occurred while contacting Google Gemini API for real-time analysis.'
+            // details stay in the server log; the farmer gets a plain message (no upstream API internals)
+            error: 'AI analysis is unavailable right now. Please try again in a minute.'
           }));
         }
       };

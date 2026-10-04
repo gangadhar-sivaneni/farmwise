@@ -74,10 +74,12 @@ export function ukey(name) {
  */
 function buildUserObject(fbUser, extra = {}) {
   const providerId = fbUser.providerData?.[0]?.providerId || extra.authProvider || 'password';
-  // Respect explicit verification status in extra profile if available
-  const isVerified = extra.emailVerified !== undefined
-    ? Boolean(extra.emailVerified)
-    : Boolean(fbUser.emailVerified);
+  // Email/password accounts: only Firebase's own flag counts — the stored profile copy is user-writable,
+  // so it must never be able to mark an unverified account as verified.
+  // Google accounts keep the app's extra one-time verification step (stored flag).
+  const isVerified = providerId === 'password' || extra.emailVerified === undefined
+    ? Boolean(fbUser.emailVerified)
+    : Boolean(extra.emailVerified);
 
   return {
     id: fbUser.uid,

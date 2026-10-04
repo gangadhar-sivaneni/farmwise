@@ -112,12 +112,14 @@ export async function analyzeImageWithGemini({ apiKey, base64Data, mimeType, cro
 
   for (const model of DEFAULT_MODELS) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`;
+      // key goes in a header, not the URL, so it never lands in request/proxy logs
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
       
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey.trim()
         },
         body: JSON.stringify(requestBody)
       });
