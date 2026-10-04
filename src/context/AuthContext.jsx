@@ -17,10 +17,16 @@ export function AuthProvider({ children }) {
     });
   }, []);
 
-  const login = useCallback(async (email, password) => {
-    const u = await auth.login(email, password);
-    if (u) setUser(u);
-    return !!u;
+  const login = useCallback(async (email, password, rememberMe = true) => {
+    const res = await auth.login(email, password, rememberMe);
+    if (res.ok && res.user) setUser(res.user);
+    return res;
+  }, []);
+
+  const loginWithGoogle = useCallback(async () => {
+    const res = await auth.loginWithGoogle();
+    if (res.ok && res.user) setUser(res.user);
+    return res;
   }, []);
 
   const register = useCallback(async (details) => {
@@ -31,6 +37,38 @@ export function AuthProvider({ children }) {
     return res;
   }, []);
 
+  const resendVerificationEmail = useCallback(async () => {
+    return await auth.resendVerificationEmail();
+  }, []);
+
+  const checkEmailVerified = useCallback(async () => {
+    const isVerified = await auth.checkEmailVerified();
+    if (auth.currentUser()) setUser({ ...auth.currentUser() });
+    return isVerified;
+  }, []);
+
+  const sendPasswordReset = useCallback(async (email) => {
+    return await auth.sendPasswordReset(email);
+  }, []);
+
+  const handleVerifyEmailCode = useCallback(async (oobCode) => {
+    const res = await auth.handleVerifyEmailCode(oobCode);
+    if (res.ok && auth.currentUser()) setUser({ ...auth.currentUser() });
+    return res;
+  }, []);
+
+  const verifyResetCode = useCallback(async (oobCode) => {
+    return await auth.verifyResetCode(oobCode);
+  }, []);
+
+  const completePasswordReset = useCallback(async (oobCode, newPassword) => {
+    return await auth.completePasswordReset(oobCode, newPassword);
+  }, []);
+
+  const changePassword = useCallback(async (newPassword) => {
+    return await auth.changePassword(newPassword);
+  }, []);
+
   const logout = useCallback(() => {
     auth.logout();
     setUser(null);
@@ -38,7 +76,22 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        loginWithGoogle,
+        register,
+        logout,
+        resendVerificationEmail,
+        checkEmailVerified,
+        sendPasswordReset,
+        handleVerifyEmailCode,
+        verifyResetCode,
+        completePasswordReset,
+        changePassword,
+      }}
+    >
       {children(user)}
     </AuthContext.Provider>
   );

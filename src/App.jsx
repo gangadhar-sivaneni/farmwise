@@ -32,11 +32,18 @@ export default function App() {
       }
 
       const path = window.location.pathname || '/';
+      const user = currentUser();
 
-      // Protected routes check
-      if (path.startsWith('/app') && !currentUser()) {
-        navigate('/login', { replace: true });
-        return;
+      // Protected routes check: must be signed in AND email-verified
+      if (path.startsWith('/app')) {
+        if (!user) {
+          navigate('/login', { replace: true });
+          return;
+        }
+        if (!user.emailVerified) {
+          navigate('/verify-email', { replace: true });
+          return;
+        }
       }
 
       setCurrentRoute(path);
@@ -94,7 +101,7 @@ export default function App() {
         return;
       }
 
-      // Clean internal SPA path: /login, /app, /app/crops, etc.
+      // Clean internal SPA path: /login, /signup, /app, /app/crops, etc.
       if (href.startsWith('/')) {
         e.preventDefault();
         navigate(href);
@@ -105,16 +112,33 @@ export default function App() {
     return () => document.removeEventListener('click', handleClick);
   }, []);
 
-  // Determine which page to render based on currentRoute
+  // Determine which page to render based on currentRoute and query parameters
+  const user = currentUser();
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const queryMode = searchParams.get('mode');
+
   let pageContent = null;
-  if (currentRoute === '/signup') {
+
+  if (queryMode === 'resetPassword' || currentRoute === '/reset-password') {
+    pageContent = <LoginPage initialMode="reset-password" />;
+  } else if (queryMode === 'verifyEmail' || currentRoute === '/verify-email') {
+    pageContent = <LoginPage initialMode="verify-pending" />;
+  } else if (currentRoute === '/forgot-password') {
+    pageContent = <LoginPage initialMode="forgot-password" />;
+  } else if (currentRoute === '/signup') {
     pageContent = <LoginPage initialMode="signup" />;
-  } else if (currentRoute === '/login' || (currentRoute.startsWith('/app') && !signedIn)) {
+  } else if (currentRoute === '/login') {
     pageContent = <LoginPage initialMode="signin" />;
   } else if (currentRoute.startsWith('/app')) {
-    const cleanSub = currentRoute.replace(/^\/app\/?/, '').split('/')[0];
-    const subpage = cleanSub || 'overview';
-    pageContent = <AppShellPage subpage={subpage} />;
+    if (!user) {
+      pageContent = <LoginPage initialMode="signin" />;
+    } else if (!user.emailVerified) {
+      pageContent = <LoginPage initialMode="verify-pending" />;
+    } else {
+      const cleanSub = currentRoute.replace(/^\/app\/?/, '').split('/')[0];
+      const subpage = cleanSub || 'overview';
+      pageContent = <AppShellPage subpage={subpage} />;
+    }
   } else {
     pageContent = <LandingPage />;
   }
