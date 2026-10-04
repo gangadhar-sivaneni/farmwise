@@ -18,8 +18,11 @@ import {
   setPersistence,
   browserLocalPersistence,
   browserSessionPersistence,
+  deleteUser,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
 } from 'firebase/auth';
-import { ref, get, set, update } from 'firebase/database';
+import { ref, get, set, update, remove } from 'firebase/database';
 
 const SESSION_KEY = 'farmwise_session_user';
 const listeners = new Set();
@@ -552,6 +555,178 @@ export async function changePassword(newPassword) {
       error: {
         en: err.message || 'Failed to update password.',
         te: 'పాస్‌వర్డ్ అప్‌డేట్ విఫలమైంది.',
+      },
+    };
+  }
+}
+
+/**
+ * Update user's profile photo (custom upload or Gmail photo)
+ */
+export async function updateUserProfilePhoto(photoURL) {
+  if (!auth.currentUser) {
+    return { ok: false, error: { en: 'No signed-in user', te: 'లాగిన్ అయిన యూజర్ లేరు' } };
+  }
+
+  const uid = auth.currentUser.uid;
+  try {
+    // 1. Update Firebase Auth user
+    await updateProfile(auth.currentUser, { photoURL });
+
+    // 2. Update RTDB profile in cloud
+    withTimeout(set(ref(rtdb, `users/${uid}/profile/photoURL`), photoURL || ''), 4000).catch((err) => {
+      console.warn('RTDB photoURL sync notice:', err.message);
+    });
+
+    // 3. Update memory session
+    if (current) {
+      current = { ...current, photoURL };
+      try {
+        localStorage.setItem(SESSION_KEY, JSON.stringify(current));
+      } catch {}
+      notifyListeners();
+    }
+
+    return { ok: true, photoURL };
+  } catch (err) {
+    console.error('Update profile photo error:', err);
+    // Graceful fallback: update local session
+    if (current) {
+      current = { ...current, photoURL };
+      try {
+        localStorage.setItem(SESSION_KEY, JSON.stringify(current));
+      } catch {}
+      notifyListeners();
+    }
+    return { ok: true, photoURL };
+  }
+}
+
+/**
+ * Send email verification link/notice before account deletion
+ */
+export async function sendAccountDeletionVerification() {
+  if (!auth.currentUser) {
+    return { ok: false, error: { en: 'No signed-in user', te: 'లాగిన్ అయిన యూజర్ లేరు' } };
+  }
+
+  try {
+    const actionCodeSettings = {
+      url: window.location.origin + '/app/profile?deletionVerificationSent=true',
+      handleCodeInApp: true,
+    };
+    await sendEmailVerification(auth.currentUser, actionCodeSettings);
+    return { ok: true };
+  } catch (err) {
+    console.error('sendAccountDeletionVerification error:', err);
+    return {
+      ok: false,
+      error: {
+        en: err.message || 'Failed to send verification email.',
+        te: 'ధృవీకరణ ఈమెయిల్ పంపడం విఫలమైంది.',
+      },
+    };
+  }
+}
+
+/**
+ * Permanently delete user account and wipe all data from website database
+ */
+export async function deleteAccountAndAllData(password = '') {
+  if (!auth.currentUser) {
+    return { ok: false, error: { en: 'No signed-in user', te: 'లాగిన్ అయిన యూజర్ లేరు' } };
+  }
+
+  const uid = auth.currentUser.uid;
+  const email = auth.currentUser.email;
+  const isGoogle = current?.authProvider === 'google.com' || auth.currentUser.providerData?.some((p) => p.providerId === 'google.com');
+
+  try {
+    // 1. Re-authenticate if password provided to satisfy recent-login requirement
+    if (password && !isGoogle) {
+      try {
+        const cred = EmailAuthProvider.credential(email, password);
+        await reauthenticateWithCredential(auth.currentUser, cred);
+      } catch (authErr) {
+        return {
+          ok: false,
+          error: {
+            en: 'Incorrect password. Please verify your current password.',
+            te: 'తప్పు పాస్‌వర్డ్. దయచేసి సరైన పాస్‌వర్డ్ ఇవ్వండి.',
+          },
+        };
+      }
+    }
+
+    // 2. Wipe ALL user data from Firebase Realtime Database
+    try {
+      await withTimeout(remove(ref(rtdb, `users/${uid}`)), 5000);
+    } catch (dbErr) {
+      console.warn('RTDB wipe notice:', dbErr.message);
+    }
+
+    // 3. Clear all user-specific data from localStorage
+    try {
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith(`farmwise_user_${uid}`) || k.includes(uid))) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+      localStorage.removeItem(SESSION_KEY);
+    } catch {}
+
+    // 4. Delete user account from Firebase Auth
+    try {
+      await deleteUser(auth.currentUser);
+    } catch (delErr) {
+      if (delErr.code === 'auth/requires-recent-login') {
+        if (isGoogle) {
+          // Attempt Google re-authentication popup
+          try {
+            const provider = new GoogleAuthProvider();
+            provider.setCustomParameters({ prompt: 'select_account' });
+            await reauthenticateWithCredential(auth.currentUser, provider);
+            await deleteUser(auth.currentUser);
+          } catch (gErr) {
+            return {
+              ok: false,
+              requiresRecentLogin: true,
+              error: {
+                en: 'Please re-authenticate with Google before deleting your account.',
+                te: 'ఖాతాను తొలగించే ముందు గూగుల్‌తో మళ్లీ ధృవీకరించుకోండి.',
+              },
+            };
+          }
+        } else {
+          return {
+            ok: false,
+            requiresRecentLogin: true,
+            error: {
+              en: 'Please re-enter your password to confirm account deletion.',
+              te: 'ఖాతాను తొలగించడానికి మీ పాస్‌వర్డ్‌ను మళ్లీ నమోదు చేయండి.',
+            },
+          };
+        }
+      } else {
+        console.warn('deleteUser notice:', delErr.message);
+      }
+    }
+
+    // 5. Clear active session in memory
+    current = null;
+    notifyListeners();
+
+    return { ok: true };
+  } catch (err) {
+    console.error('Delete account error:', err);
+    return {
+      ok: false,
+      error: {
+        en: err.message || 'Failed to delete account.',
+        te: 'ఖాతా తొలగింపు విఫలమైంది.',
       },
     };
   }

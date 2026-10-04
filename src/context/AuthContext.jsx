@@ -69,6 +69,25 @@ export function AuthProvider({ children }) {
     return await auth.changePassword(newPassword);
   }, []);
 
+  const updateUserProfilePhoto = useCallback(async (photoURL) => {
+    const res = await auth.updateUserProfilePhoto(photoURL);
+    if (res.ok && auth.currentUser()) setUser({ ...auth.currentUser() });
+    return res;
+  }, []);
+
+  const sendAccountDeletionVerification = useCallback(async () => {
+    return await auth.sendAccountDeletionVerification();
+  }, []);
+
+  const deleteAccountAndAllData = useCallback(async (password = '') => {
+    const res = await auth.deleteAccountAndAllData(password);
+    if (res.ok) {
+      setUser(null);
+      navigate('/', { replace: true });
+    }
+    return res;
+  }, []);
+
   const logout = useCallback(() => {
     auth.logout();
     setUser(null);
@@ -90,6 +109,9 @@ export function AuthProvider({ children }) {
         verifyResetCode,
         completePasswordReset,
         changePassword,
+        updateUserProfilePhoto,
+        sendAccountDeletionVerification,
+        deleteAccountAndAllData,
       }}
     >
       {children(user)}

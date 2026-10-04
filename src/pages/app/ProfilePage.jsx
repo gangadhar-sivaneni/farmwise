@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Icon from '../../components/common/Icon';
 import { useLanguage } from '../../context/LanguageContext';
 import { useApp } from '../../context/AppContext';
@@ -27,11 +27,38 @@ function formatDateSafe(val, fallback = 'Recent') {
   }
 }
 
+function maskEmail(str) {
+  if (!str || !str.includes('@')) return str || '';
+  const [user, domain] = str.split('@');
+  if (user.length <= 2) return `${user[0]}*@${domain}`;
+  return `${user.slice(0, 2)}${'*'.repeat(Math.min(user.length - 2, 5))}@${domain}`;
+}
+
 /** Farmer's personal details — saved per account. */
 export default function ProfilePage() {
   const { L, showToast } = useLanguage();
   const { profile, saveProfile } = useApp();
-  const { user, resendVerificationEmail, checkEmailVerified, changePassword } = useAuth();
+  const {
+    user,
+    resendVerificationEmail,
+    checkEmailVerified,
+    changePassword,
+    updateUserProfilePhoto,
+    sendAccountDeletionVerification,
+    deleteAccountAndAllData,
+  } = useAuth();
+
+  const fileInputRef = useRef(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+
+  // Danger Zone: Account Deletion state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteStep, setDeleteStep] = useState('initial'); // 'initial' | 'verify'
+  const [deleteCooldown, setDeleteCooldown] = useState(0);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   const [f, setF] = useState(() => {
     const p = profile || {};
@@ -50,6 +77,7 @@ export default function ProfilePage() {
       irrigation: p.irrigation || 'borewell',
       soil: p.soil || 'loamy',
       farmerId: p.farmerId || '',
+      photoURL: p.photoURL || user?.photoURL || '',
     };
   });
 
@@ -76,6 +104,7 @@ export default function ProfilePage() {
         irrigation: prev.irrigation || p.irrigation || 'borewell',
         soil: prev.soil || p.soil || 'loamy',
         farmerId: prev.farmerId || p.farmerId || '',
+        photoURL: prev.photoURL || p.photoURL || user?.photoURL || '',
       };
     });
   }, [profile, user]);
@@ -156,6 +185,143 @@ export default function ProfilePage() {
     }
   };
 
+  /* =========================================================
+     PROFILE PHOTO HANDLERS
+     ========================================================= */
+  const activePhoto = f.photoURL || profile?.photoURL || user?.photoURL || '';
+
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast({ en: 'Please select an image file (PNG, JPG, or WEBP).', te: 'దయచేసి ఫోటో ఫైల్ ఎంచుకోండి.' });
+      return;
+    }
+    setPhotoUploading(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 256;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxDim) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+        setF((prev) => ({ ...prev, photoURL: dataUrl }));
+        updateUserProfilePhoto(dataUrl);
+        saveProfile({ ...f, photoURL: dataUrl });
+        setPhotoUploading(false);
+        showToast({ en: 'Profile photo updated!', te: 'ప్రొఫైల్ ఫోటో నవీకరించబడింది!' });
+      };
+      img.onerror = () => {
+        setPhotoUploading(false);
+        showToast({ en: 'Failed to process image.', te: 'ఫోటోను ప్రాసెస్ చేయడం విఫలమైంది.' });
+      };
+      img.src = event.target.result;
+    };
+    reader.onerror = () => {
+      setPhotoUploading(false);
+      showToast({ en: 'Failed to read image file.', te: 'ఫోటో చదవడం విఫలమైంది.' });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUseGmailPhoto = () => {
+    const gPhoto = user?.photoURL || '';
+    if (!gPhoto) return;
+    setF((prev) => ({ ...prev, photoURL: gPhoto }));
+    updateUserProfilePhoto(gPhoto);
+    saveProfile({ ...f, photoURL: gPhoto });
+    showToast({ en: 'Using your Google account photo.', te: 'గూగుల్ ఖాతా ఫోటో వర్తించబడింది.' });
+  };
+
+  const handleRemovePhoto = () => {
+    setF((prev) => ({ ...prev, photoURL: '' }));
+    updateUserProfilePhoto('');
+    saveProfile({ ...f, photoURL: '' });
+    showToast({ en: 'Profile photo removed.', te: 'ప్రొఫైల్ ఫోటో తీసివేయబడింది.' });
+  };
+
+  /* =========================================================
+     ACCOUNT DELETION HANDLERS
+     ========================================================= */
+  useEffect(() => {
+    if (deleteCooldown <= 0) return;
+    const t = setInterval(() => setDeleteCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearInterval(t);
+  }, [deleteCooldown]);
+
+  const handleSendDeletionEmail = async () => {
+    if (deleteCooldown > 0) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    const res = await sendAccountDeletionVerification();
+    setDeleteBusy(false);
+    if (res.ok) {
+      setDeleteStep('verify');
+      setDeleteCooldown(60);
+      showToast({
+        en: 'Verification link sent to your email. Please check your inbox.',
+        te: 'ధృవీకరణ లింక్ మీ ఈమెయిల్‌కు పంపబడింది. దయచేసి ఇన్‌బాక్స్ చూడండి.',
+      });
+    } else {
+      setDeleteError(res.error);
+    }
+  };
+
+  const handleConfirmDeleteAccount = async (e) => {
+    e.preventDefault();
+    setDeleteError(null);
+
+    const isGoogle = user?.authProvider === 'google.com';
+    if (!isGoogle && !deletePassword) {
+      setDeleteError({
+        en: 'Please enter your account password to confirm deletion.',
+        te: 'ఖాతాను తొలగించడానికి మీ పాస్‌వర్డ్‌ను నమోదు చేయండి.',
+      });
+      return;
+    }
+
+    if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') {
+      setDeleteError({
+        en: 'Please type DELETE in the confirmation box.',
+        te: 'ధృవీకరణ పెట్టెలో DELETE అని టైప్ చేయండి.',
+      });
+      return;
+    }
+
+    setDeleteBusy(true);
+    const res = await deleteAccountAndAllData(deletePassword);
+    setDeleteBusy(false);
+
+    if (res.ok) {
+      setShowDeleteModal(false);
+      showToast({
+        en: 'Your account and all associated data have been permanently deleted.',
+        te: 'మీ ఖాతా మరియు అన్ని రికార్డులు డేటాబేస్ నుండి పూర్తిగా తొలగించబడ్డాయి.',
+      });
+    } else {
+      setDeleteError(res.error);
+    }
+  };
+
   const set = (k) => (e) => {
     setF((s) => ({ ...s, [k]: e.target.value }));
     setErrors((s) => ({ ...s, [k]: null }));
@@ -216,6 +382,107 @@ export default function ProfilePage() {
       </div>
 
       <form className="prof" onSubmit={submit} noValidate>
+        {/* PROFILE PICTURE CARD */}
+        <div className="card">
+          <div className="card-h">
+            <h3>{L({ en: 'Profile picture', te: 'ప్రొఫైల్ ఫోటో' })}</h3>
+          </div>
+          <div style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '22px', flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', width: '84px', height: '84px', flexShrink: 0 }}>
+              {activePhoto ? (
+                <img
+                  src={activePhoto}
+                  alt={f.name || 'Farmer'}
+                  style={{
+                    width: '84px',
+                    height: '84px',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '3px solid var(--brand, #2e7d32)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                  }}
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div
+                  style={{
+                    width: '84px',
+                    height: '84px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '30px',
+                    fontWeight: '700',
+                    border: '3px solid rgba(46, 125, 50, 0.3)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                  }}
+                >
+                  {(f.name || user?.name || '?')[0].toUpperCase()}
+                </div>
+              )}
+            </div>
+
+            <div style={{ flex: 1, minWidth: '220px' }}>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png, image/jpeg, image/webp"
+                  hidden
+                  onChange={handlePhotoUpload}
+                />
+                <button
+                  type="button"
+                  className="btn btn-dark sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={photoUploading}
+                >
+                  <Icon name="upload" className="ico sm" />
+                  <span>{L(photoUploading ? { en: 'Uploading...', te: 'అప్‌లోడ్ అవుతోంది...' } : { en: 'Upload Photo', te: 'ఫోటో అప్‌లోడ్ చేయండి' })}</span>
+                </button>
+
+                {user?.photoURL && f.photoURL !== user.photoURL && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost sm"
+                    onClick={handleUseGmailPhoto}
+                    style={{ border: '1px solid var(--line-2)' }}
+                  >
+                    <span>{L({ en: 'Use Google Photo', te: 'గూగుల్ ఫోటో వాడండి' })}</span>
+                  </button>
+                )}
+
+                {activePhoto && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost sm"
+                    onClick={handleRemovePhoto}
+                    style={{ border: '1px solid var(--line-2)', color: 'var(--ink-3)' }}
+                  >
+                    <Icon name="trash" className="ico sm" />
+                    <span>{L({ en: 'Remove', te: 'తొలగించు' })}</span>
+                  </button>
+                )}
+              </div>
+
+              <p style={{ margin: 0, fontSize: '13px', color: 'var(--ink-2)', lineHeight: '1.4' }}>
+                {user?.photoURL
+                  ? L({
+                      en: 'Automatically synced from your Google account. You can replace or upload a new photo anytime.',
+                      te: 'మీ గూగుల్ ఖాతా నుండి స్వయంచాలకంగా తీసుకోబడింది. మీరు ఎప్పుడైనా కొత్త ఫోటోను మార్చవచ్చు లేదా అప్‌లోడ్ చేయవచ్చు.',
+                    })
+                  : L({
+                      en: 'Upload a picture (JPG, PNG, WEBP). It will appear across your FarmWise topbar and profile.',
+                      te: 'ఫోటోను అప్‌లోడ్ చేయండి (JPG, PNG, WEBP). ఇది మీ FarmWise డాష్‌బోర్డ్‌లో కనిపిస్తుంది.',
+                    })}
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* PERSONAL DETAILS CARD */}
         <div className="card">
           <div className="card-h"><h3>{L({ en: 'Personal details', te: 'వ్యక్తిగత వివరాలు' })}</h3></div>
@@ -479,6 +746,44 @@ export default function ProfilePage() {
           )}
         </div>
 
+        {/* DANGER ZONE: DELETE ACCOUNT CARD */}
+        <div className="card" style={{ borderColor: '#fca5a5', marginTop: '24px', background: 'rgba(239, 68, 68, 0.02)' }}>
+          <div className="card-h" style={{ borderBottom: '1px solid #fee2e2' }}>
+            <h3 style={{ color: '#dc2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icon name="trash" className="ico" style={{ color: '#dc2626' }} />
+              <span>{L({ en: 'Delete Account (Danger Zone)', te: 'ఖాతాను తొలగించండి (ప్రమాదకర ప్రాంతం)' })}</span>
+            </h3>
+          </div>
+          <div style={{ padding: '20px' }}>
+            <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--ink-2)', lineHeight: '1.5' }}>
+              {L({
+                en: 'Permanently delete your FarmWise account and all personal data, plots, field records, and crop insights from the website database. This action is irreversible.',
+                te: 'మీ ఖాతా మరియు డేటాబేస్ లో సేవ్ చేయబడిన అన్ని ప్లాట్లు, పొలం రికార్డులు మరియు వివరాలను శాశ్వతంగా తొలగించండి. ఈ చర్యను వెనక్కి తీసుకోలేము.',
+              })}
+            </p>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => {
+                setShowDeleteModal(true);
+                setDeleteStep('initial');
+                setDeleteError(null);
+                setDeleteConfirmText('');
+                setDeletePassword('');
+              }}
+              style={{
+                borderColor: '#dc2626',
+                color: '#dc2626',
+                fontWeight: '600',
+                padding: '10px 18px',
+              }}
+            >
+              <Icon name="trash" className="ico sm" />
+              <span>{L({ en: 'Delete My Account', te: 'నా ఖాతాను తొలగించండి' })}</span>
+            </button>
+          </div>
+        </div>
+
         <div className="prof-foot">
           <button type="submit" className="btn btn-orange">
             <Icon name="save" className="ico" />
@@ -486,6 +791,222 @@ export default function ProfilePage() {
           </button>
         </div>
       </form>
+
+      {/* DELETE ACCOUNT CONFIRMATION MODAL */}
+      {showDeleteModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+            backdropFilter: 'blur(4px)',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !deleteBusy) {
+              setShowDeleteModal(false);
+            }
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--card, #ffffff)',
+              borderRadius: '16px',
+              maxWidth: '480px',
+              width: '100%',
+              padding: '26px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.25)',
+              border: '1px solid var(--line-2, #e5e7eb)',
+              position: 'relative',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
+              <div
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '50%',
+                  background: '#fee2e2',
+                  color: '#dc2626',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Icon name="trash" className="ico md" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '20px', color: '#111827' }}>
+                  {L({ en: 'Delete Account & All Data', te: 'ఖాతా & మొత్తం డేటాను తొలగించండి' })}
+                </h3>
+                <p style={{ margin: '2px 0 0', fontSize: '13px', color: '#6b7280' }}>
+                  {maskEmail(user?.email || '')}
+                </p>
+              </div>
+            </div>
+
+            {deleteStep === 'initial' ? (
+              <div>
+                <div
+                  style={{
+                    padding: '14px',
+                    borderRadius: '10px',
+                    background: '#fff5f5',
+                    border: '1px solid #fed7d7',
+                    marginBottom: '18px',
+                    fontSize: '13.5px',
+                    color: '#9b2c2c',
+                    lineHeight: '1.5',
+                  }}
+                >
+                  <b>{L({ en: 'Warning:', te: 'హెచ్చరిక:' })}</b>{' '}
+                  {L({
+                    en: 'This will permanently erase all your farm plots, crop history, soil data, and account from the database. To verify your identity, a verification email will be sent to your Gmail/Email.',
+                    te: 'ఇది మీ అన్ని ప్లాట్లు, పంట చరిత్ర, నేల వివరాలు మరియు ఖాతాను డేటాబేస్ నుండి శాశ్వతంగా తొలగిస్తుంది. మీ గుర్తింపును ధృవీకరించడానికి మీ ఈమెయిల్‌కు ధృవీకరణ మెయిల్ పంపబడుతుంది.',
+                  })}
+                </div>
+
+                {deleteError && (
+                  <p className="err" style={{ marginBottom: '14px', color: '#dc2626', fontSize: '13.5px' }}>
+                    {L(deleteError)}
+                  </p>
+                )}
+
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => setShowDeleteModal(false)}
+                    disabled={deleteBusy}
+                  >
+                    <span>{L({ en: 'Cancel', te: 'రద్దు' })}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={handleSendDeletionEmail}
+                    disabled={deleteBusy}
+                    style={{ background: '#dc2626', borderColor: '#dc2626', color: '#ffffff' }}
+                  >
+                    <span>
+                      {L(deleteBusy
+                        ? { en: 'Sending verification...', te: 'పంపబడుతోంది...' }
+                        : { en: 'Send Verification Email', te: 'ధృవీకరణ ఈమెయిల్ పంపండి' })}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleConfirmDeleteAccount}>
+                <div
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: '10px',
+                    background: 'rgba(46, 125, 50, 0.08)',
+                    border: '1px solid rgba(46, 125, 50, 0.25)',
+                    marginBottom: '16px',
+                    fontSize: '13px',
+                    color: 'var(--ink)',
+                  }}
+                >
+                  ✉️ {L({
+                    en: 'Verification mail has been dispatched to your email inbox and spam folder.',
+                    te: 'మీ ఇన్‌బాక్స్ మరియు స్పామ్ ఫోల్డర్‌కు ధృవీకరణ మెయిల్ పంపబడింది.',
+                  })}
+                  {deleteCooldown > 0 && (
+                    <span style={{ display: 'block', marginTop: '4px', fontSize: '12px', color: 'var(--ink-3)' }}>
+                      {L({ en: `Resend available in ${deleteCooldown}s`, te: `${deleteCooldown} సెకన్లలో మళ్లీ పంపవచ్చు` })}
+                    </span>
+                  )}
+                </div>
+
+                {user?.authProvider !== 'google.com' && (
+                  <div className="fld" style={{ marginBottom: '12px' }}>
+                    <label htmlFor="del-pw">{L({ en: 'Your Password *', te: 'మీ పాస్‌వర్డ్ *' })}</label>
+                    <div className="inp">
+                      <input
+                        id="del-pw"
+                        type="password"
+                        placeholder="Current password"
+                        value={deletePassword}
+                        onChange={(e) => {
+                          setDeletePassword(e.target.value);
+                          setDeleteError(null);
+                        }}
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="fld" style={{ marginBottom: '16px' }}>
+                  <label htmlFor="del-confirm">
+                    {L({
+                      en: 'Type DELETE to confirm *',
+                      te: 'నిర్ధారించడానికి DELETE అని టైప్ చేయండి *',
+                    })}
+                  </label>
+                  <div className="inp">
+                    <input
+                      id="del-confirm"
+                      type="text"
+                      placeholder="DELETE"
+                      value={deleteConfirmText}
+                      onChange={(e) => {
+                        setDeleteConfirmText(e.target.value);
+                        setDeleteError(null);
+                      }}
+                      required
+                      autoComplete="off"
+                    />
+                  </div>
+                </div>
+
+                {deleteError && (
+                  <p className="err" style={{ marginBottom: '14px', color: '#dc2626', fontSize: '13.5px' }}>
+                    {L(deleteError)}
+                  </p>
+                )}
+
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => setShowDeleteModal(false)}
+                    disabled={deleteBusy}
+                  >
+                    <span>{L({ en: 'Cancel', te: 'రద్దు' })}</span>
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn"
+                    disabled={deleteBusy || deleteConfirmText.trim().toUpperCase() !== 'DELETE'}
+                    style={{
+                      background: '#dc2626',
+                      borderColor: '#dc2626',
+                      color: '#ffffff',
+                      opacity: deleteConfirmText.trim().toUpperCase() !== 'DELETE' ? 0.6 : 1,
+                    }}
+                  >
+                    <span>
+                      {L(deleteBusy
+                        ? { en: 'Deleting everything...', te: 'తొలగిస్తోంది...' }
+                        : { en: 'Permanently Delete Account', te: 'శాశ్వతంగా ఖాతా తొలగించు' })}
+                    </span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

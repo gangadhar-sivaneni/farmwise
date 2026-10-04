@@ -8,8 +8,9 @@ import { PAGE_T } from '../../data/translations';
 
 export default function AppTopbar({ currentPage }) {
   const { t, L } = useLanguage();
-  const { weatherData, locationInfo, displayName } = useApp();
-  const { logout } = useAuth();
+  const { weatherData, locationInfo, displayName, profile } = useApp();
+  const { user, logout } = useAuth();
+  const avatarUrl = profile?.photoURL || user?.photoURL;
   const [menu, setMenu] = useState(false);
   const menuRef = useRef(null);
   useEffect(() => {
@@ -55,8 +56,31 @@ export default function AppTopbar({ currentPage }) {
       <div className="r">
         <LanguageSwitcher />
         <div className="pmenu" ref={menuRef}>
-          <button type="button" className="avatar" aria-haspopup="menu" aria-expanded={menu} aria-label={L({ en: 'Profile menu', te: 'ప్రొఫైల్ మెను' })} onClick={() => setMenu((m) => !m)}>
-            {(displayName || '?')[0].toUpperCase()}
+          <button
+            type="button"
+            className="avatar"
+            aria-haspopup="menu"
+            aria-expanded={menu}
+            aria-label={L({ en: 'Profile menu', te: 'ప్రొఫైల్ మెను' })}
+            onClick={() => setMenu((m) => !m)}
+            style={{
+              padding: 0,
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={displayName}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              (displayName || '?')[0].toUpperCase()
+            )}
           </button>
           {menu && (
             <div className="fsel-pop pmenu-pop" role="menu">
