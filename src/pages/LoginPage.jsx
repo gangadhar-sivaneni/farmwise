@@ -161,7 +161,7 @@ export default function LoginPage({ initialMode = 'signin' }) {
                 }}
                 onClick={() => switchMode('signin')}
               >
-                {L({ en: 'Sign In', te: 'లాగిన్' })}
+                {L({ en: 'Login', te: 'లాగిన్' })}
               </button>
               <button
                 type="button"
@@ -255,7 +255,7 @@ export default function LoginPage({ initialMode = 'signin' }) {
                   style={{ width: '100%', minHeight: '48px', marginTop: '8px', fontSize: '15.5px' }}
                   disabled={busy}
                 >
-                  <span>{L(busy ? { en: 'Signing in...', te: 'లాగిన్ అవుతోంది...' } : { en: 'Sign In', te: 'లాగిన్ అవ్వండి' })}</span>
+                  <span>{L(busy ? { en: 'Logging in...', te: 'లాగిన్ అవుతోంది...' } : { en: 'Login', te: 'లాగిన్ అవ్వండి' })}</span>
                   <Icon name="arrow" className="ico sm" />
                 </button>
 
@@ -282,6 +282,7 @@ export default function LoginPage({ initialMode = 'signin' }) {
                   })}
                 </p>
 
+                <div className="login-fields-scroll">
                 <div className="fld">
                   <label htmlFor="signup-name">{L({ en: 'Full Name *', te: 'పూర్తి పేరు *' })}</label>
                   <div className="inp">
@@ -354,7 +355,7 @@ export default function LoginPage({ initialMode = 'signin' }) {
                       id="signup-password"
                       type={showPw ? 'text' : 'password'}
                       autoComplete="new-password"
-                      placeholder="Min 4 characters"
+                      placeholder="Min 6 characters"
                       value={password}
                       onChange={(e) => {
                         setPassword(e.target.value);
@@ -398,6 +399,7 @@ export default function LoginPage({ initialMode = 'signin' }) {
                     </button>
                   </div>
                 </div>
+                </div>
 
                 {error && (
                   <p className="err" role="alert" style={{ marginBottom: '14px', color: '#dc2626', fontSize: '13.5px' }}>
@@ -422,7 +424,7 @@ export default function LoginPage({ initialMode = 'signin' }) {
                     style={{ background: 'none', border: 'none', color: 'var(--brand, #2e7d32)', fontWeight: '600', cursor: 'pointer', padding: 0 }}
                     onClick={() => switchMode('signin')}
                   >
-                    {L({ en: 'Sign In', te: 'లాగిన్ అవ్వండి' })}
+                    {L({ en: 'Login', te: 'లాగిన్ అవ్వండి' })}
                   </button>
                 </div>
               </form>
