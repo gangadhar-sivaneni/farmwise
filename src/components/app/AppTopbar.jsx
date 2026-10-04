@@ -62,7 +62,7 @@ export default function AppTopbar({ currentPage }) {
             <div className="fsel-pop pmenu-pop" role="menu">
               <small className="fsel-h">{L({ en: 'SIGNED IN AS', te: 'లాగిన్ అయినవారు' })}</small>
               <b className="pmenu-name">{displayName}</b>
-              <a role="menuitem" className="fsel-add pmenu-item" href="#/app/profile" onClick={() => setMenu(false)}>
+              <a role="menuitem" className="fsel-add pmenu-item" href="/app/profile" onClick={() => setMenu(false)}>
                 <Icon name="user" /><span>{L({ en: 'Profile settings', te: 'ప్రొఫైల్ సెట్టింగ్స్' })}</span>
               </a>
               <button type="button" role="menuitem" className="fsel-add" onClick={logout}>

@@ -3,6 +3,7 @@ import Icon from '../common/Icon';
 import { useLanguage } from '../../context/LanguageContext';
 import { useApp } from '../../context/AppContext';
 import { byId } from '../../data/cropsData';
+import { navigate } from '../../utils/navigation';
 
 export default function CompareTray() {
   const { L, t, W } = useLanguage();
@@ -20,7 +21,7 @@ export default function CompareTray() {
   const handleGoCompare = (e) => {
     e.preventDefault();
     setShowTray(false);
-    window.location.hash = '#/app/crops';
+    navigate('/app/crops');
     setTimeout(() => {
       const el = document.getElementById('compare');
       if (el) el.scrollIntoView({ behavior: 'smooth' });

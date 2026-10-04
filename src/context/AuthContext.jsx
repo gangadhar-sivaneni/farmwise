@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import * as auth from '../services/authService';
+import { navigate } from '../utils/navigation';
 
 const AuthContext = createContext(null);
 
@@ -27,7 +28,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     auth.logout();
     setUser(null);
-    window.location.replace('#/login'); // replace: Back does not return to the dashboard
+    navigate('/login', { replace: true });
   }, []);
 
   return (

@@ -4,6 +4,7 @@ import Icon from '../components/common/Icon';
 import LanguageSwitcher from '../components/common/LanguageSwitcher';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+import { navigate } from '../utils/navigation';
 
 const BAD = { en: 'Invalid email or password', te: 'ఈమెయిల్ లేదా పాస్‌వర్డ్ తప్పుగా ఉంది' };
 
@@ -59,7 +60,7 @@ export default function LoginPage({ initialMode = 'signin' }) {
       return;
     }
 
-    window.location.replace('#/app/overview');
+    navigate('/app/overview', { replace: true });
     showToast(W.welcome);
   };
 
@@ -112,7 +113,7 @@ export default function LoginPage({ initialMode = 'signin' }) {
       return;
     }
 
-    window.location.replace('#/app/overview');
+    navigate('/app/overview', { replace: true });
     showToast(W.welcome);
   };
 
@@ -128,7 +129,7 @@ export default function LoginPage({ initialMode = 'signin' }) {
       <div className="login">
         <div className="panel login-l">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '20px' }}>
-            <a href="#/" className="logo">
+            <a href="/" className="logo">
               <BrandMark />
               <span>
                 <b>FarmWise</b>

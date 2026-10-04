@@ -60,7 +60,7 @@ export default function FeaturesSection() {
           <a
             key={i}
             className={`fcard rv in ${f.delay}`}
-            href="#/login"
+            href="/login"
           >
             <span className="ph">
               <img loading="lazy" src={f.img} alt="" />

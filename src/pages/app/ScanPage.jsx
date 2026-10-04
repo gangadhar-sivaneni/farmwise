@@ -817,7 +817,7 @@ export default function ScanPage() {
 
                 {/* 3. Third Action: Find nearby input shops */}
                 <a
-                  href="#/app/market"
+                  href="/app/market"
                   className="scan-action-tile tertiary-market"
                   id="nearbyShopsBtn"
                   aria-label={t('scan.marketBtn', 'Nearby input shops')}

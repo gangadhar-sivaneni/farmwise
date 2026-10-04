@@ -40,7 +40,7 @@ export default function AppSidebar({ currentPage }) {
 
   return (
     <aside className="panel side">
-      <a href="#/app/overview" className="logo">
+      <a href="/app/overview" className="logo">
         <BrandMark />
         <span>
           <b>FarmWise</b>
@@ -57,7 +57,7 @@ export default function AppSidebar({ currentPage }) {
           return (
             <a
               key={item.page}
-              href={`#/app/${item.page}`}
+              href={`/app/${item.page}`}
               className={isActive ? 'on' : ''}
               aria-current={isActive ? 'page' : undefined}
             >

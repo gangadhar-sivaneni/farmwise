@@ -5,6 +5,7 @@ import { useApp } from '../../context/AppContext';
 import { byId, cropCost, IMG, inr } from '../../data/cropsData';
 import { useMandiPrices, livePriceOf } from '../../hooks/useMandiPrices';
 import { LBL } from '../../data/translations';
+import { navigate } from '../../utils/navigation';
 
 export default function CropDetailModal() {
   const { L, W } = useLanguage();
@@ -49,7 +50,7 @@ export default function CropDetailModal() {
   const handlePlan = () => {
     setPlannerCrop(crop.id);
     handleClose();
-    window.location.hash = '#/app/planner';
+    navigate('/app/planner');
   };
 
   const handleCompare = () => {

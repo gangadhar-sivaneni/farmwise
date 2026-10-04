@@ -20,7 +20,7 @@ export default function LandingEnd() {
               'Open your farm and try the crop planner, weather advice and leaf scan.'
             )}
           </p>
-          <a href="#/login" className="btn btn-light">
+          <a href="/login" className="btn btn-light">
             <span>{t('hero.cta1', 'Explore My Farm')}</span>
             <span className="ar">
               <Icon name="arrow-ur" className="ico sm" />

@@ -334,7 +334,7 @@ export default function OverviewPage() {
                   <span className="w" id="mapPlotsN">
                     {`${activeFarm.plots.length} ${L(activeFarm.plots.length === 1 ? { en: 'plot', te: 'ప్లాట్' } : W.plots)} · ${+totals.acres.toFixed(2)} ${L(W.acresW)}`}
                   </span>
-                  <a className="btn sm" href="#/app/crops" style={{ minHeight: '30px' }}>
+                  <a className="btn sm" href="/app/crops" style={{ minHeight: '30px' }}>
                     {t('ov.explore', 'Explore crops')}
                   </a>
                   {!activeFarm.record?.polygon && (
@@ -434,7 +434,7 @@ export default function OverviewPage() {
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px', flexWrap: 'wrap' }}>
                 <a
                   className="btn btn-dark sm"
-                  href="#/app/scan"
+                  href="/app/scan"
                   style={{ textDecoration: 'none', minHeight: '34px', fontSize: '13px' }}
                 >
                   <Icon name="scan" className="ico sm" />
@@ -442,7 +442,7 @@ export default function OverviewPage() {
                 </a>
                 <a
                   className="btn sm"
-                  href="#/app/market"
+                  href="/app/market"
                   style={{ textDecoration: 'none', minHeight: '34px', fontSize: '13px', background: '#FFFFFF', color: '#111310' }}
                 >
                   <Icon name="store" className="ico sm" />
@@ -458,7 +458,7 @@ export default function OverviewPage() {
               <span id="alertTitle">{L(fieldAlert.t)}</span>
             </div>
             <p id="alertBody">{L(fieldAlert.d)}</p>
-            <a className="btn sm" href="#/app/scan">
+            <a className="btn sm" href="/app/scan">
               <Icon name="scan" className="ico sm" />
               <span>{t('dash.scanNow', 'Scan a leaf')}</span>
             </a>
@@ -469,7 +469,7 @@ export default function OverviewPage() {
               <h3>{t('dash.tasks', 'Today’s farm tasks')}</h3>
               <a
                 className="muted"
-                href="#/app/tasks"
+                href="/app/tasks"
                 id="miniTaskCount"
                 style={{ fontSize: '13.5px', textDecoration: 'none' }}
               >
@@ -499,7 +499,7 @@ export default function OverviewPage() {
         <div className="card">
           <div className="card-h">
             <h3>{t('dash.progress', 'Crop growth cycle')}</h3>
-            <a className="icon-btn" href="#/app/crops" aria-label="Crops">
+            <a className="icon-btn" href="/app/crops" aria-label="Crops">
               <Icon name="arrow-ur" className="ico sm" />
             </a>
           </div>
@@ -541,7 +541,7 @@ export default function OverviewPage() {
         <div className="card">
           <div className="card-h">
             <h3>{t('dash.forecast', '5-day forecast')}</h3>
-            <a className="icon-btn" href="#/app/weather" aria-label="Weather">
+            <a className="icon-btn" href="/app/weather" aria-label="Weather">
               <Icon name="arrow-ur" className="ico sm" />
             </a>
           </div>

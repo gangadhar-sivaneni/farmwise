@@ -5,59 +5,115 @@ import LoginPage from './pages/LoginPage';
 import AppShellPage from './pages/AppShellPage';
 import { useApp } from './context/AppContext';
 import { currentUser } from './services/authService';
+import { navigate } from './utils/navigation';
 
 export default function App() {
   const { signedIn } = useApp();
 
-  const [currentRoute, setCurrentRoute] = useState(() => {
-    return window.location.hash || '#/';
-  });
+  const getInitialPath = () => {
+    // If arriving with a legacy hash URL (e.g. #/login or #/app/overview), cleanly migrate to path
+    if (window.location.hash.startsWith('#/')) {
+      const clean = window.location.hash.slice(1);
+      window.history.replaceState({}, '', clean);
+      return clean;
+    }
+    return window.location.pathname || '/';
+  };
+
+  const [currentRoute, setCurrentRoute] = useState(getInitialPath);
 
   useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash || '#/';
-      // Check auth for protected routes
-      // read the auth service directly: it updates synchronously on login/logout
-      if (hash.startsWith('#/app') && !currentUser()) {
-        window.location.replace('#/login');
+    const handleRouteChange = () => {
+      // Check for legacy hash migration
+      if (window.location.hash.startsWith('#/')) {
+        const clean = window.location.hash.slice(1);
+        navigate(clean, { replace: true });
         return;
       }
-      setCurrentRoute(hash);
+
+      const path = window.location.pathname || '/';
+
+      // Protected routes check
+      if (path.startsWith('/app') && !currentUser()) {
+        navigate('/login', { replace: true });
+        return;
+      }
+
+      setCurrentRoute(path);
     };
 
-    window.addEventListener('hashchange', handleHashChange);
-    // Initial check
-    handleHashChange();
+    window.addEventListener('popstate', handleRouteChange);
+    window.addEventListener('hashchange', handleRouteChange);
 
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    // Initial check
+    handleRouteChange();
+
+    return () => {
+      window.removeEventListener('popstate', handleRouteChange);
+      window.removeEventListener('hashchange', handleRouteChange);
+    };
   }, [signedIn]);
 
-  // Handle in-page anchors clicking without breaking router
+  // Global click interceptor: handles in-page section scrolling & SPA path navigation
   useEffect(() => {
-    const handleAnchorClick = (e) => {
-      const anchor = e.target.closest('a[href^="#"]:not([href^="#/"])');
+    const handleClick = (e) => {
+      const anchor = e.target.closest('a');
       if (!anchor) return;
-      const targetId = anchor.getAttribute('href').slice(1);
-      const targetEl = document.getElementById(targetId);
-      if (targetEl) {
+
+      const href = anchor.getAttribute('href');
+      if (!href) return;
+
+      // Ignore external links, mailto, tel, or links opening in new tab
+      if (
+        href.startsWith('http:') ||
+        href.startsWith('https:') ||
+        href.startsWith('//') ||
+        href.startsWith('mailto:') ||
+        href.startsWith('tel:') ||
+        anchor.target === '_blank' ||
+        anchor.hasAttribute('download')
+      ) {
+        return;
+      }
+
+      // Legacy hash route: #/app/...
+      if (href.startsWith('#/')) {
         e.preventDefault();
-        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        navigate(href.slice(1));
+        return;
+      }
+
+      // In-page section anchor: #features, #how, etc.
+      if (href.startsWith('#') && href.length > 1) {
+        e.preventDefault();
+        const targetId = href.slice(1);
+        const targetEl = document.getElementById(targetId);
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        return;
+      }
+
+      // Clean internal SPA path: /login, /app, /app/crops, etc.
+      if (href.startsWith('/')) {
+        e.preventDefault();
+        navigate(href);
       }
     };
 
-    document.addEventListener('click', handleAnchorClick);
-    return () => document.removeEventListener('click', handleAnchorClick);
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
   }, []);
 
   // Determine which page to render based on currentRoute
   let pageContent = null;
-  if (currentRoute === '#/signup') {
+  if (currentRoute === '/signup') {
     pageContent = <LoginPage initialMode="signup" />;
-  } else if (currentRoute === '#/login' || (currentRoute.startsWith('#/app') && !signedIn)) {
-    pageContent = <LoginPage initialMode="signin" />; // the dashboard never renders without a signed-in user
-  } else if (currentRoute.startsWith('#/app')) {
-    const parts = currentRoute.replace('#/app/', '').split('/');
-    const subpage = parts[0] || 'overview';
+  } else if (currentRoute === '/login' || (currentRoute.startsWith('/app') && !signedIn)) {
+    pageContent = <LoginPage initialMode="signin" />;
+  } else if (currentRoute.startsWith('/app')) {
+    const cleanSub = currentRoute.replace(/^\/app\/?/, '').split('/')[0];
+    const subpage = cleanSub || 'overview';
     pageContent = <AppShellPage subpage={subpage} />;
   } else {
     pageContent = <LandingPage />;

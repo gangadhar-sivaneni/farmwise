@@ -16,7 +16,7 @@ export default function LandingNav() {
 
   return (
     <header className="wrap lp-nav">
-      <a href="#/" className="logo" aria-label="FarmWise home">
+      <a href="/" className="logo" aria-label="FarmWise home">
         <BrandMark />
         <span>
           <b>FarmWise</b>
@@ -31,17 +31,17 @@ export default function LandingNav() {
         <a href="#how" onClick={(e) => handleScrollTo(e, 'how')}>
           {t('nav.how', 'How it works')}
         </a>
-        <a href="#/login">{t('nav.planner', 'Crop Planner')}</a>
-        <a href="#/login">{t('nav.scan', 'AI Crop Scan')}</a>
+        <a href="/login">{t('nav.planner', 'Crop Planner')}</a>
+        <a href="/login">{t('nav.scan', 'AI Crop Scan')}</a>
       </nav>
 
       <div className="right">
         <LanguageSwitcher />
-        <a href="#/login" className="lp-login">
+        <a href="/login" className="lp-login">
           {t('nav.login', 'Log in')}
         </a>
         <a
-          href="#/signup"
+          href="/signup"
           className="btn btn-dark sm"
           style={{ borderRadius: '999px', padding: '0 18px' }}
         >

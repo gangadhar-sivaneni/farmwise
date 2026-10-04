@@ -25,7 +25,7 @@ export default function LandingHero() {
           {t('hero.sub', 'Understand your soil, choose the right crop, plan your costs, and grow with confidence.')}
         </p>
         <div className="lp-cta">
-          <a href="#/login" className="btn btn-dark">
+          <a href="/login" className="btn btn-dark">
             <span>{t('hero.cta1', 'Explore My Farm')}</span>
             <span className="ar">
               <Icon name="arrow-ur" className="ico sm" />
