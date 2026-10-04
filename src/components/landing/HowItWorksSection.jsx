@@ -15,7 +15,7 @@ export default function HowItWorksSection() {
         <p>
           {t(
             's3.p',
-            'No new equipment. Sign in with your mobile number and FarmWise does the reading for you.'
+            'No new equipment. Sign in with your email and FarmWise does the reading for you.'
           )}
         </p>
       </div>
@@ -56,8 +56,8 @@ export default function HowItWorksSection() {
       <div className="steps">
         <div className="rv in">
           <span className="mono">01</span>
-          <b>{t('h1', 'Sign in with your number')}</b>
-          <p>{t('h1p', 'A one-time code — no passwords to remember.')}</p>
+          <b>{t('h1', 'Sign in with your email')}</b>
+          <p>{t('h1p', 'Enter your email and password — quick, secure, and always saved.')}</p>
         </div>
         <div className="rv in d1">
           <span className="mono">02</span>

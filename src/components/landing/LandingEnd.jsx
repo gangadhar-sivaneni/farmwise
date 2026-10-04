@@ -34,7 +34,7 @@ export default function LandingEnd() {
           {t('foot.p', 'Grow Smarter. Farm Better.')}
         </span>
         <span className="mono">
-          {t('foot.credit', 'Video: Pexels · Photos: Unsplash · © 2026 FarmWise')}
+          {t('foot.credit', 'made by knighthunters · © 2026 FarmWise')}
         </span>
       </div>
     </section>
