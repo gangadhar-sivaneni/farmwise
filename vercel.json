@@ -4,6 +4,7 @@
   "outputDirectory": "dist",
   "functions": {
     "api/analyze.js": { "maxDuration": 60 },
+    "api/config-status.js": { "maxDuration": 15 },
     "api/markets/prices.js": { "maxDuration": 60 }
   },
   "headers": [
