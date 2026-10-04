@@ -5,13 +5,6 @@
 const USERS_KEY = 'farmwise_users_db';
 const SESSION_KEY = 'farmwise_session';
 
-// Predefined accounts available for demo/testing
-const DEFAULT_ACCOUNTS = [
-  { id: 'u1', name: 'Gangadhar', email: 'gangadhar@farmwise.in', hash: '91141f8ac76b9186f62bc8b8ae09396c38236ab7cbeb11c5c98cb6b11b91ac28' },
-  { id: 'u2', name: 'Rohith', email: 'rohith@farmwise.in', hash: '28dad401036308e4c5e72418cdb53d46a25f0c33c97df1530cfa029eec6adf64' },
-  { id: 'u3', name: 'Vamshi', email: 'vamshi@farmwise.in', hash: 'bcf426e7d48a71a72e69d4ec72ef34e0af09f3b10e3aac7bfe9238e9b3d6da67' },
-];
-
 let current = null;
 
 const publicUser = (a) => (a ? { id: a.id, name: a.name, email: a.email, phone: a.phone || '' } : null);
@@ -68,9 +61,8 @@ export async function register({ name, email, password, phone = '', district = '
 
   const users = getStoredUsers();
   const existsInUsers = users.some((u) => u.email === normEmail);
-  const existsInDemo = DEFAULT_ACCOUNTS.some((a) => a.email.toLowerCase() === normEmail);
 
-  if (existsInUsers || existsInDemo) {
+  if (existsInUsers) {
     return {
       ok: false,
       error: {
@@ -109,7 +101,7 @@ export async function register({ name, email, password, phone = '', district = '
 
 /**
  * Log in with Email and Password.
- * Validates against both registered users and fallback demo accounts.
+ * Validates against registered users in the database.
  */
 export async function login(email, password) {
   const normEmail = String(email || '').trim().toLowerCase();
@@ -118,16 +110,7 @@ export async function login(email, password) {
   const hash = await sha256(`${normEmail}\n${password}`);
   const users = getStoredUsers();
 
-  // 1. Look up in persistent registered users database
-  let acc = users.find((u) => u.email === normEmail && u.hash === hash);
-
-  // 2. If not found, check default demo accounts
-  if (!acc) {
-    acc = DEFAULT_ACCOUNTS.find(
-      (a) => a.hash === hash || (a.email.toLowerCase() === normEmail && a.hash === hash)
-    );
-  }
-
+  const acc = users.find((u) => u.email === normEmail && u.hash === hash);
   if (!acc) return null;
 
   current = publicUser(acc);
@@ -157,7 +140,7 @@ export function getSession() {
       return null;
     }
     const users = getStoredUsers();
-    const acc = users.find((a) => a.id === s.userId) || DEFAULT_ACCOUNTS.find((a) => a.id === s.userId);
+    const acc = users.find((a) => a.id === s.userId);
     current = publicUser(acc);
   } catch {
     current = null;

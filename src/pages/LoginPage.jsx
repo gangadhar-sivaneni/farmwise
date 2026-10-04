@@ -117,12 +117,6 @@ export default function LoginPage({ initialMode = 'signin' }) {
     showToast(W.welcome);
   };
 
-  // Quick helper to fill demo account for convenience
-  const fillDemo = (demoEmail, demoPw) => {
-    setEmail(demoEmail);
-    setPassword(demoPw);
-    setError(null);
-  };
 
   return (
     <div className="screen on" id="s-login">
