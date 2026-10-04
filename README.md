@@ -108,7 +108,6 @@ farmwise/
 │   ├── pages/                # Landing, Login and app/* pages
 │   ├── services/             # firebase, auth, farm, weather, soil, irrigation
 │   └── utils/                # geo maths, land-file parser, navigation
-├── database.rules.json       # Firebase Realtime Database security rules
 ├── vercel.json               # Build, functions, headers, SPA rewrites
 └── vite.config.js
 ```
@@ -148,9 +147,18 @@ GEMINI_API_KEY=your_gemini_api_key
 
 ### 3. Set up Firebase
 1. In the Firebase console, enable **Email/Password** and **Google** sign-in providers.
-2. Create a **Realtime Database**, then deploy the security rules:
-   ```bash
-   npx firebase-tools deploy --only database
+2. Create a **Realtime Database**, and under **Rules**, set `users/$uid` access:
+   ```json
+   {
+     "rules": {
+       "users": {
+         "$uid": {
+           ".read": "auth != null && auth.uid === $uid",
+           ".write": "auth != null && auth.uid === $uid"
+         }
+       }
+     }
+   }
    ```
 3. Add your local and production domains under **Authentication → Settings → Authorized domains**.
 
