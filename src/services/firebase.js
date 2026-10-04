@@ -4,7 +4,7 @@ import { getDatabase } from 'firebase/database';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBNLcgdkxPiTY0RxNlshIfIkQalemHeLaM",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "farmwise-be0bd.firebaseapp.com",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "auth.farmwise.gangadharsivaneni.tech",
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || "https://farmwise-be0bd-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "farmwise-be0bd",
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "farmwise-be0bd.firebasestorage.app",
