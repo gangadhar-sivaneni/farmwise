@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState, useEffect } from 'react';
 import * as farmService from '../services/farmService';
 
 const FarmContext = createContext(null);
@@ -11,6 +11,22 @@ export function FarmProvider({ children }) {
     const list = farmService.getCachedPlots();
     return list.some((p) => p.id === saved) ? saved : (list[0]?.id || null);
   });
+
+  // Automatically sync plots from Firestore cloud on mount
+  useEffect(() => {
+    let active = true;
+    farmService.listPlots().then((list) => {
+      if (active && Array.isArray(list)) {
+        setPlots(list);
+        setActiveIdState((cur) => {
+          if (cur && list.some((p) => p.id === cur)) return cur;
+          return list[0]?.id || null;
+        });
+      }
+    });
+    return () => { active = false; };
+  }, []);
+
   // Plot editor: null = closed, {} = new plot, plot record = edit that plot
   const [editor, setEditor] = useState(null);
 

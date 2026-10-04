@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useState, useEffect } from 'react';
 import * as auth from '../services/authService';
 import { navigate } from '../utils/navigation';
 
@@ -10,6 +10,12 @@ const AuthContext = createContext(null);
  */
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(auth.currentUser);
+
+  useEffect(() => {
+    return auth.onAuthUserChanged((u) => {
+      setUser(u);
+    });
+  }, []);
 
   const login = useCallback(async (email, password) => {
     const u = await auth.login(email, password);

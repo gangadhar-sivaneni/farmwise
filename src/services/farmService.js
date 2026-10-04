@@ -4,6 +4,9 @@ import { ukey, currentUser } from './authService';
 import { byId } from '../data/cropsData';
 import { areaFromSqm, SQM_PER_ACRE, toSvgPoints, centroidOf } from '../utils/geo';
 
+import { db } from './firebase';
+import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
+
 // Every key is scoped to the signed-in user (farmwise_user_<id>_plots …): accounts never share plots.
 const PLOTS = 'plots';
 const ACTIVE = 'active_plot';
@@ -19,7 +22,7 @@ const read = (k, fallback) => {
 };
 
 const write = (k, v) => {
-  if (!currentUser()) throw new Error('Sign in to save farm data');
+  if (!currentUser()) return;
   try {
     localStorage.setItem(ukey(k), JSON.stringify(v));
   } catch {
@@ -38,14 +41,40 @@ export function getCachedPlots() {
 export const getCachedActiveId = () => read(ACTIVE, null);
 export const saveActiveId = (id) => write(ACTIVE, id);
 export const resetPlots = () => {
-  localStorage.removeItem(ukey(PLOTS));
+  try {
+    localStorage.removeItem(ukey(PLOTS));
+  } catch {}
 };
 
 export async function listPlots() {
-  return getCachedPlots();
+  const user = currentUser();
+  if (!user) return [];
+
+  const cached = getCachedPlots();
+
+  try {
+    const colRef = collection(db, 'users', user.id, 'plots');
+    const snap = await getDocs(colRef);
+    if (!snap.empty) {
+      const cloudPlots = snap.docs.map((d) => d.data());
+      write(PLOTS, cloudPlots);
+      return cloudPlots;
+    } else if (cached.length > 0) {
+      // Sync existing local plots to cloud
+      for (const p of cached) {
+        await setDoc(doc(db, 'users', user.id, 'plots', p.id), p, { merge: true });
+      }
+      return cached;
+    }
+  } catch (err) {
+    console.warn('Firestore listPlots sync fallback to cache:', err);
+  }
+
+  return cached;
 }
 
 export async function savePlot(plot) {
+  const user = currentUser();
   const now = new Date().toISOString();
   const plots = getCachedPlots();
   const rec = {
@@ -57,13 +86,33 @@ export async function savePlot(plot) {
   const next = plots.some((p) => p.id === rec.id)
     ? plots.map((p) => (p.id === rec.id ? rec : p))
     : [...plots, rec];
+
   write(PLOTS, next);
+
+  if (user?.id) {
+    try {
+      await setDoc(doc(db, 'users', user.id, 'plots', rec.id), rec, { merge: true });
+    } catch (err) {
+      console.warn('Firestore savePlot warning (saved locally):', err);
+    }
+  }
+
   return rec;
 }
 
 export async function deletePlot(id) {
+  const user = currentUser();
   const next = getCachedPlots().filter((p) => p.id !== id);
   write(PLOTS, next);
+
+  if (user?.id) {
+    try {
+      await deleteDoc(doc(db, 'users', user.id, 'plots', id));
+    } catch (err) {
+      console.warn('Firestore deletePlot warning:', err);
+    }
+  }
+
   return next;
 }
 

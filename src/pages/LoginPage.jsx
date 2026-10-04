@@ -83,10 +83,10 @@ export default function LoginPage({ initialMode = 'signin' }) {
       });
       return;
     }
-    if (!password || password.length < 4) {
+    if (!password || password.length < 6) {
       setError({
-        en: 'Password must be at least 4 characters long.',
-        te: 'పాస్‌వర్డ్ కనీసం 4 అక్షరాలు ఉండాలి.',
+        en: 'Password must be at least 6 characters long.',
+        te: 'పాస్‌వర్డ్ కనీసం 6 అక్షరాలు ఉండాలి.',
       });
       return;
     }
