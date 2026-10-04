@@ -41,7 +41,7 @@ export default function LandingNav() {
           {t('nav.login', 'Log in')}
         </a>
         <a
-          href="#/login"
+          href="#/signup"
           className="btn btn-dark sm"
           style={{ borderRadius: '999px', padding: '0 18px' }}
         >

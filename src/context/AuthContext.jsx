@@ -16,13 +16,25 @@ export function AuthProvider({ children }) {
     return !!u;
   }, []);
 
+  const register = useCallback(async (details) => {
+    const res = await auth.register(details);
+    if (res.ok && res.user) {
+      setUser(res.user);
+    }
+    return res;
+  }, []);
+
   const logout = useCallback(() => {
     auth.logout();
     setUser(null);
     window.location.replace('#/login'); // replace: Back does not return to the dashboard
   }, []);
 
-  return <AuthContext.Provider value={{ user, login, logout }}>{children(user)}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, login, register, logout }}>
+      {children(user)}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

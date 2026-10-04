@@ -83,17 +83,19 @@ export default function WeatherPage() {
   const cur = weatherData?.current;
 
   // Selected Day vs Today Variables
+  const fallbackTemp = activeFarm?.temp ?? 28;
+  const fallbackCond = activeFarm?.cond ?? { en: 'Clear sky', te: 'తేలికపాటి ఎండ' };
   const displayTemp = isSelectedToday
-    ? (cur ? cur.temperature : activeFarm.temp)
-    : (selectedDay.hi ?? activeFarm.temp);
+    ? (cur ? cur.temperature : fallbackTemp)
+    : (selectedDay.hi ?? fallbackTemp);
 
   const displayApparent = isSelectedToday
-    ? (cur ? cur.apparentTemperature : activeFarm.temp)
+    ? (cur ? cur.apparentTemperature : fallbackTemp)
     : null;
 
   const displayCondition = isSelectedToday
-    ? (cur ? L(cur.condition) : L(activeFarm.cond))
-    : (selectedDay.condition ? L(selectedDay.condition) : L(activeFarm.cond));
+    ? (cur ? L(cur.condition) : L(fallbackCond))
+    : (selectedDay.condition ? L(selectedDay.condition) : L(fallbackCond));
 
   const displayIcon = isSelectedToday
     ? (cur ? cur.icon : 'cloudsun')
@@ -151,7 +153,7 @@ export default function WeatherPage() {
   };
 
   // Illustrative irrigation need for every crop on the selected plot (ET₀ × Kc × area)
-  const irrigation = displayET0 == null ? null : activeFarm.plots.map((p) => {
+  const irrigation = displayET0 == null || !activeFarm?.plots ? null : activeFarm.plots.map((p) => {
     const crop = byId(p.crop);
     const fraction = crop ? p.day / ((crop.dur[0] + crop.dur[1]) / 2) : 0.5;
     return { p, crop, est: estimateIrrigation({ cropId: p.crop, acres: p.acres, et0: displayET0, rainMm: selectedDayMetrics.rainSum, fraction }) };
@@ -171,9 +173,9 @@ export default function WeatherPage() {
         : '';
     locationDisplay = `${L(locationInfo.name)}${coordsStr}`;
   } else if (locationInfo?.name) {
-    locationDisplay = `${L(locationInfo.name)} · ${L(activeFarm.name)}`;
+    locationDisplay = activeFarm?.name ? `${L(locationInfo.name)} · ${L(activeFarm.name)}` : L(locationInfo.name);
   } else {
-    locationDisplay = L(activeFarm.loc);
+    locationDisplay = activeFarm?.loc ? L(activeFarm.loc) : L({ en: 'Live GPS Location', te: 'ప్రత్యక్ష GPS స్థానం' });
   }
 
   return (

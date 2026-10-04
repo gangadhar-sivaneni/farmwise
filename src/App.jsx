@@ -51,8 +51,10 @@ export default function App() {
 
   // Determine which page to render based on currentRoute
   let pageContent = null;
-  if (currentRoute === '#/login' || (currentRoute.startsWith('#/app') && !signedIn)) {
-    pageContent = <LoginPage />; // the dashboard never renders without a signed-in user
+  if (currentRoute === '#/signup') {
+    pageContent = <LoginPage initialMode="signup" />;
+  } else if (currentRoute === '#/login' || (currentRoute.startsWith('#/app') && !signedIn)) {
+    pageContent = <LoginPage initialMode="signin" />; // the dashboard never renders without a signed-in user
   } else if (currentRoute.startsWith('#/app')) {
     const parts = currentRoute.replace('#/app/', '').split('/');
     const subpage = parts[0] || 'overview';

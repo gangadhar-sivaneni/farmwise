@@ -42,12 +42,17 @@ export default function FarmSelector() {
         aria-labelledby="farmSelL farmSel"
         onClick={() => setOpen((o) => !o)}
       >
-        {activePlot ? `${nameOf(activePlot)}${where(activePlot) ? ` · ${where(activePlot)}` : ''}` : '—'}
+        {activePlot ? `${nameOf(activePlot)}${where(activePlot) ? ` · ${where(activePlot)}` : ''}` : L({ en: '+ Add Plot Strictly', te: '+ ప్లాట్ జోడించండి' })}
       </button>
 
       {open && (
         <div className="fsel-pop" role="listbox" aria-label={L({ en: 'My farms', te: 'నా పొలాలు' })}>
           <small className="fsel-h">{L({ en: 'MY FARMS', te: 'నా పొలాలు' })}</small>
+          {plots.length === 0 && (
+            <div style={{ padding: '10px 14px', fontSize: '13px', color: 'var(--ink-2)' }}>
+              {L({ en: 'No plots added yet. Click below to add.', te: 'ఇంకా ప్లాట్లు లేవు. జోడించడానికి క్రింద నొక్కండి.' })}
+            </div>
+          )}
           {plots.map((p) => {
             const on = p.id === activePlot?.id;
             const crop = byId(p.crop);

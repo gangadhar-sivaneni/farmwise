@@ -42,12 +42,12 @@ const write = (k, v) => {
   try { localStorage.setItem(ukey(k), JSON.stringify(v)); } catch { /* storage full/blocked */ }
 };
 
-/** The signed-in user's plots. A new account starts with its own copy of one sample farm (none when signed out). */
+/** The signed-in user's plots. Returns strictly only what the user has added (empty if none). */
 export function getCachedPlots() {
   const user = currentUser();
   if (!user) return [];
   const saved = read(PLOTS, null);
-  return Array.isArray(saved) && saved.length ? saved : [demoPlot(`${user.id}-sample`, user.sample)];
+  return Array.isArray(saved) ? saved : [];
 }
 export const getCachedActiveId = () => read(ACTIVE, null);
 export const saveActiveId = (id) => write(ACTIVE, id);

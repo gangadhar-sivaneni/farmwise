@@ -28,7 +28,7 @@ const seasonLabel = (d = new Date()) => {
 };
 
 export default function OverviewPage() {
-  const { openPlotEditor } = useFarm();
+  const { openPlotEditor, plots } = useFarm();
   const { t, L, loc, W, lang } = useLanguage();
   const {
     activeFarm,
@@ -65,14 +65,16 @@ export default function OverviewPage() {
     let cost = 0;
     let rev = 0;
     let acres = 0;
-    activeFarm.plots.forEach((p) => {
-      const c = byId(p.crop);
-      if (c) {
-        cost += cropCost(c) * p.acres;
-        rev += c.yield * livePriceOf(c, mandi) * p.acres;
-        acres += p.acres;
-      }
-    });
+    if (activeFarm?.plots) {
+      activeFarm.plots.forEach((p) => {
+        const c = byId(p.crop);
+        if (c) {
+          cost += cropCost(c) * p.acres;
+          rev += c.yield * livePriceOf(c, mandi) * p.acres;
+          acres += p.acres;
+        }
+      });
+    }
     return { cost, rev, profit: rev - cost, acres };
   }, [activeFarm, mandi]);
 
@@ -86,9 +88,9 @@ export default function OverviewPage() {
 
   useEffect(() => {
     const t0 = performance.now();
-    const liveTemp = weatherData?.current?.temperature ?? activeFarm.temp;
+    const liveTemp = weatherData?.current?.temperature ?? activeFarm?.temp ?? 28;
     const target = {
-      crops: activeFarm.plots.length,
+      crops: activeFarm?.plots?.length || 0,
       area: totals.acres,
       profit: totals.profit,
       temp: liveTemp,
@@ -141,7 +143,16 @@ export default function OverviewPage() {
     `${sel.rain}% ${L({ en: 'chance of rain', te: 'వర్షం అవకాశం' })}`,
     dayAdvice && L(dayAdvice.t),
   ].filter(Boolean).join(' · ');
-  const fieldAlert = (weatherData?.current && generateFarmerTips(weatherData.current)[1]) || { t: activeFarm.alert.t, d: activeFarm.alert.b };
+
+  const fieldAlert = (weatherData?.current && generateFarmerTips(weatherData.current)[1]) ||
+    (activeFarm?.alert ? { t: activeFarm.alert.t, d: activeFarm.alert.b } : {
+      t: { en: 'Add your farm plot', te: 'మీ పొలం ప్లాట్ జోడించండి' },
+      d: { en: 'Click "Add Plot" to map your field boundary and get customized crop insights.', te: 'ఖచ్చితమైన పంట సలహాల కోసం "ప్లాట్ జోడించండి" నొక్కండి.' }
+    });
+
+  const farmSummary = activeFarm
+    ? `${L(activeFarm.name)} · ${L(locationInfo?.isLiveGPS && locationInfo?.name ? locationInfo.name : activeFarm.loc)} · ${L(seasonLabel())}`
+    : L({ en: 'No farm plot added yet · Please add your plot strictly', te: 'ఇంకా ప్లాట్ జోడించలేదు · దయచేసి ప్లాట్ జోడించండి' });
 
   return (
     <section className="panel page" data-page="overview" style={{ display: 'block' }}>
@@ -151,13 +162,77 @@ export default function OverviewPage() {
             <span>{greetWord}</span>, <span>{displayName}</span>.
           </h1>
           <p id="farmSummary">
-            {`${L(activeFarm.name)} · ${L(locationInfo?.isLiveGPS && locationInfo?.name ? locationInfo.name : activeFarm.loc)} · ${L(seasonLabel())}`}
+            {farmSummary}
           </p>
         </div>
         <span className="muted" id="todayDate">
           {todayDate}
         </span>
       </div>
+
+      {/* STRICT ADD PLOT CALL-TO-ACTION CARD WHEN NO PLOT IS ADDED */}
+      {!activeFarm && (
+        <div
+          className="card"
+          style={{
+            padding: '32px 24px',
+            marginBottom: '20px',
+            borderRadius: '16px',
+            background: 'linear-gradient(135deg, rgba(46, 125, 50, 0.08), rgba(245, 158, 11, 0.08))',
+            border: '2px dashed var(--brand, #2e7d32)',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '16px',
+          }}
+        >
+          <div
+            style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              background: '#2E7D32',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '28px',
+              boxShadow: '0 4px 14px rgba(46, 125, 50, 0.35)',
+            }}
+          >
+            🌾
+          </div>
+          <div style={{ maxWidth: '640px' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: '700', color: 'var(--ink, #111)', margin: '0 0 8px' }}>
+              {L({ en: 'Strict Requirement: Add Your Farm Plot', te: 'తప్పనిసరి: మీ పొలం ప్లాట్‌ను జోడించండి' })}
+            </h2>
+            <p style={{ fontSize: '15px', color: 'var(--ink-2, #555)', margin: 0, lineHeight: '1.6' }}>
+              {L({
+                en: 'You have not added any farm plots yet. FarmWise requires your field location and boundary to unlock live satellite weather, soil profiles, profit calculations, mandi rates, and daily farming tasks strictly for your land.',
+                te: 'మీరు ఇంకా ఎటువంటి పొలం ప్లాట్ జోడించలేదు. ప్రత్యక్ష ఉపగ్రహ వాతావరణం, నేల నివేదిక, లాభాల ప్రణాళిక మరియు మార్కెట్ ధరల కోసం మీ పొలం ప్లాట్‌ను జోడించడం తప్పనిసరి.',
+              })}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-dark"
+            style={{
+              padding: '14px 32px',
+              fontSize: '16px',
+              fontWeight: '600',
+              borderRadius: '999px',
+              background: '#2E7D32',
+              boxShadow: '0 4px 16px rgba(46, 125, 50, 0.35)',
+              cursor: 'pointer',
+            }}
+            onClick={() => openPlotEditor({})}
+          >
+            <Icon name="plus" className="ico" />
+            <span>{L({ en: 'Add Your Farm Plot Strictly', te: 'ఇప్పుడే మీ ప్లాట్‌ను జోడించండి' })}</span>
+          </button>
+        </div>
+      )}
 
       <div className="grid g4" id="kpis">
         <div className="card kpi">
@@ -169,7 +244,9 @@ export default function OverviewPage() {
             {displayVals.crops}
           </span>
           <span className="s" id="kCropsS">
-            {activeFarm.plots.map((p) => L(byId(p.crop)?.name)).join(', ')}
+            {activeFarm?.plots?.length
+              ? activeFarm.plots.map((p) => L(byId(p.crop)?.name)).join(', ')
+              : L({ en: 'No plots added', te: 'ప్లాట్లు లేవు' })}
           </span>
         </div>
 
@@ -182,7 +259,13 @@ export default function OverviewPage() {
             <span id="kArea">{displayVals.area.toFixed(1)}</span>
             <small>{t('acres', 'acres')}</small>
           </span>
-          <span className="s">{activeFarm.areaSource === 'demo' ? t('kpi.areaS', 'Across all plots') : L(SOURCE_LABEL[activeFarm.areaSource])}</span>
+          <span className="s">
+            {activeFarm?.areaSource === 'demo'
+              ? t('kpi.areaS', 'Across all plots')
+              : activeFarm?.areaSource
+              ? L(SOURCE_LABEL[activeFarm.areaSource] || { en: 'Custom plot', te: 'స్వంత ప్లాట్' })
+              : L({ en: 'Add plot', te: 'ప్లాట్ జోడించండి' })}
+          </span>
         </div>
 
         <div className="card kpi hl">
@@ -198,49 +281,109 @@ export default function OverviewPage() {
 
         <div className="card kpi">
           <span className="k">
-            <Icon name={weatherData?.current?.icon || "cloudsun"} className="ico sm" />
+            <Icon name={weatherData?.current?.icon || 'cloudsun'} className="ico sm" />
             <span>{t('kpi.wx', 'Weather')}</span>
           </span>
           <span className="v">
-            <span id="kTemp">{(weatherData?.current?.temperature ?? activeFarm.temp) == null ? '—' : displayVals.temp}</span>°C
+            <span id="kTemp">
+              {(weatherData?.current?.temperature ?? activeFarm?.temp) == null ? '—' : displayVals.temp}
+            </span>
+            °C
           </span>
           <span className="s" id="kTempS">
-            {weatherData?.current?.condition ? L(weatherData.current.condition) : activeFarm.cond ? L(activeFarm.cond) : '—'}
+            {weatherData?.current?.condition
+              ? L(weatherData.current.condition)
+              : activeFarm?.cond
+              ? L(activeFarm.cond)
+              : '—'}
           </span>
         </div>
       </div>
 
       <div className="grid g-ov" style={{ marginTop: '12px' }}>
         <div className="card">
-          <div className="card-h">
+          <div className="card-h" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3>{t('ov.map', 'Field map')}</h3>
+            {!activeFarm && (
+              <button
+                type="button"
+                className="btn sm"
+                style={{ minHeight: '30px' }}
+                onClick={() => openPlotEditor({})}
+              >
+                <Icon name="plus" className="ico sm" />
+                <span>{L({ en: 'Add Plot', te: 'ప్లాట్ జోడించండి' })}</span>
+              </button>
+            )}
           </div>
           <div className="map">
-            <MapBoundary message={L({ en: 'The map could not load. Check your internet.', te: 'మ్యాప్ లోడ్ కాలేదు. ఇంటర్నెట్ చూడండి.' })} retry={L({ en: 'Retry', te: 'మళ్లీ ప్రయత్నించండి' })}>
-            <Suspense fallback={null}>
-              <FieldMap
-                plot={activeFarm.record}
-                label={`${L(activeFarm.name)} · ${activeFarm.plots.map((p) => L(byId(p.crop)?.name)).join(', ')} · ${+totals.acres.toFixed(2)} ${L(W.acresW)}`}
-              />
-            </Suspense>
-            </MapBoundary>
-            <div className="over">
-              <span className="w" id="mapPlotsN">
-                {`${activeFarm.plots.length} ${L(activeFarm.plots.length === 1 ? { en: 'plot', te: 'ప్లాట్' } : W.plots)} · ${+totals.acres.toFixed(2)} ${L(W.acresW)}`}
-              </span>
-              <a
-                className="btn sm"
-                href="#/app/crops"
-                style={{ minHeight: '30px' }}
+            {activeFarm ? (
+              <>
+                <MapBoundary
+                  message={L({ en: 'The map could not load. Check your internet.', te: 'మ్యాప్ లోడ్ కాలేదు. ఇంటర్నెట్ చూడండి.' })}
+                  retry={L({ en: 'Retry', te: 'మళ్లీ ప్రయత్నించండి' })}
+                >
+                  <Suspense fallback={null}>
+                    <FieldMap
+                      plot={activeFarm.record}
+                      label={`${L(activeFarm.name)} · ${activeFarm.plots.map((p) => L(byId(p.crop)?.name)).join(', ')} · ${+totals.acres.toFixed(2)} ${L(W.acresW)}`}
+                    />
+                  </Suspense>
+                </MapBoundary>
+                <div className="over">
+                  <span className="w" id="mapPlotsN">
+                    {`${activeFarm.plots.length} ${L(activeFarm.plots.length === 1 ? { en: 'plot', te: 'ప్లాట్' } : W.plots)} · ${+totals.acres.toFixed(2)} ${L(W.acresW)}`}
+                  </span>
+                  <a className="btn sm" href="#/app/crops" style={{ minHeight: '30px' }}>
+                    {t('ov.explore', 'Explore crops')}
+                  </a>
+                  {!activeFarm.record?.polygon && (
+                    <button
+                      type="button"
+                      className="btn sm"
+                      style={{ minHeight: '30px' }}
+                      onClick={() => openPlotEditor(activeFarm.record)}
+                    >
+                      {L({ en: 'Draw boundary', te: 'సరిహద్దు గీయండి' })}
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div
+                style={{
+                  height: '280px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'var(--soft, #f3f3f1)',
+                  borderRadius: '12px',
+                  gap: '12px',
+                  color: 'var(--ink-2, #666)',
+                  padding: '24px',
+                  textAlign: 'center',
+                }}
               >
-                {t('ov.explore', 'Explore crops')}
-              </a>
-              {!activeFarm.record?.polygon && (
-                <button type="button" className="btn sm" style={{ minHeight: '30px' }} onClick={() => openPlotEditor(activeFarm.record)}>
-                  {L({ en: 'Draw boundary', te: 'సరిహద్దు గీయండి' })}
+                <Icon name="pin" style={{ width: '40px', height: '40px', color: '#2E7D32' }} />
+                <b style={{ fontSize: '16px' }}>{L({ en: 'No Farm Plot Added', te: 'ఇంకా పొలం ప్లాట్ జోడించలేదు' })}</b>
+                <p style={{ margin: 0, fontSize: '14px', maxWidth: '400px' }}>
+                  {L({
+                    en: 'Map your plot boundary or enter your acres to see satellite imagery and field boundaries.',
+                    te: 'ఉపగ్రహ చిత్రం మరియు సరిహద్దుల కోసం మీ ప్లాట్‌ను నమోదు చేయండి.',
+                  })}
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-dark sm"
+                  style={{ background: '#2E7D32', color: '#fff', marginTop: '6px' }}
+                  onClick={() => openPlotEditor({})}
+                >
+                  <Icon name="plus" className="ico sm" />
+                  <span>{L({ en: 'Add Plot Now', te: 'ఇప్పుడే ప్లాట్ జోడించండి' })}</span>
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -253,7 +396,7 @@ export default function OverviewPage() {
               style={{
                 background: '#FFF9F5',
                 borderColor: '#FFD4C2',
-                color: 'var(--ink)'
+                color: 'var(--ink)',
               }}
             >
               <div className="h" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
@@ -361,28 +504,37 @@ export default function OverviewPage() {
             </a>
           </div>
           <div id="cropProgress">
-            {activeFarm.plots.map((p, i) => {
-              const c = byId(p.crop);
-              if (!c) return null;
-              const total = Math.round((c.dur[0] + c.dur[1]) / 2);
-              const pct = Math.min(100, Math.round((p.day / total) * 100));
-              return (
-                <div key={i} className="cprog">
-                  <img src={IMG(c.img, 120)} alt="" />
-                  <div>
-                    <div className="t">
-                      <b style={{ fontWeight: 500 }}>
-                        {L(c.name)} · {L(W.plot)} {p.label}
-                      </b>
-                      <span>
-                        {STAGES[lang][stageOf(pct)]} · {pct}%
-                      </span>
+            {activeFarm?.plots?.length ? (
+              activeFarm.plots.map((p, i) => {
+                const c = byId(p.crop);
+                if (!c) return null;
+                const total = Math.round((c.dur[0] + c.dur[1]) / 2);
+                const pct = Math.min(100, Math.round((p.day / total) * 100));
+                return (
+                  <div key={i} className="cprog">
+                    <img src={IMG(c.img, 120)} alt="" />
+                    <div>
+                      <div className="t">
+                        <b style={{ fontWeight: 500 }}>
+                          {L(c.name)} · {L(W.plot)} {p.label}
+                        </b>
+                        <span>
+                          {STAGES[lang][stageOf(pct)]} · {pct}%
+                        </span>
+                      </div>
+                      {segs(pct)}
                     </div>
-                    {segs(pct)}
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            ) : (
+              <p className="muted" style={{ padding: '16px 0', fontSize: '14px' }}>
+                {L({
+                  en: 'No plots added yet. Click "+ Add Plot" above to start tracking crop cycles.',
+                  te: 'ఇంకా ప్లాట్లు లేవు. పంట చక్రం కోసం పైనున్న "+ ప్లాట్ జోడించండి" నొక్కండి.',
+                })}
+              </p>
+            )}
           </div>
         </div>
 
