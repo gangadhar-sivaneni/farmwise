@@ -611,7 +611,7 @@ export default function LoginPage({ initialMode = 'signin' }) {
                   <span>{L({ en: 'or register with email', te: 'లేదా ఈమెయిల్‌తో నమోదు' })}</span>
                 </div>
 
-                <div className="login-fields-scroll" style={{ width: '100%', boxSizing: 'border-box' }}>
+                <div>
                   <div className="fld" style={{ width: '100%', boxSizing: 'border-box' }}>
                     <label htmlFor="signup-name">{L({ en: 'Full Name *', te: 'పూర్తి పేరు *' })}</label>
                     <div className="inp" style={{ width: '100%', boxSizing: 'border-box' }}>
