@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import IconSprite from './components/common/IconSprite';
+import LocationPrompt from './components/common/LocationPrompt';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import AppShellPage from './pages/AppShellPage';
@@ -146,6 +147,7 @@ export default function App() {
   return (
     <>
       <IconSprite />
+      <LocationPrompt />
       {pageContent}
     </>
   );

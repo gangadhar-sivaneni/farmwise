@@ -6004,3 +6004,12 @@ dialog.plot-dlg { width: min(860px, calc(100vw - 24px)); }
 .pmenu-item svg, .pmenu-pop .fsel-add svg { width: 16px; height: 16px; }
 .map-fail { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; padding: 16px; text-align: center; background: var(--soft); color: var(--ink-2); font-size: 14px; }
 .pmap .map-fail, .plot-dlg > form > .map-fail { position: static; min-height: 200px; border-radius: var(--r); }
+
+/* Location permission popup */
+dialog.loc-dlg { width: min(400px, calc(100vw - 32px)); margin: auto; }
+.loc-dlg-body { padding: 28px 24px 24px; text-align: center; }
+.loc-dlg-body h3 { font-size: 19px; font-weight: 500; margin: 0 0 8px; }
+.loc-dlg-body p { margin: 0; line-height: 1.5; }
+.loc-dlg-icon { width: 52px; height: 52px; border-radius: 50%; background: #E8F0E0; color: #436B2B; display: grid; place-items: center; margin: 0 auto 16px; }
+.loc-dlg-steps { text-align: left; margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14.5px; }
+.loc-dlg-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 22px; }

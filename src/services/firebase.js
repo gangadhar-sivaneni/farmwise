@@ -4,7 +4,9 @@ import { getDatabase } from 'firebase/database';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "auth.farmwise.gangadharsivaneni.tech",
+  // Default Firebase handler domain: always resolves and is pre-registered with Google OAuth.
+  // (auth.farmwise.gangadharsivaneni.tech has no DNS record, which made Google sign-in hang.)
+  authDomain: "farmwise-be0bd.firebaseapp.com",
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || "https://farmwise-be0bd-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "farmwise-be0bd",
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "farmwise-be0bd.firebasestorage.app",

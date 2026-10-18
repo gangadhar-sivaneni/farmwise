@@ -10,23 +10,40 @@
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const weatherCache = new Map();
 
+// In-page permission popup (<LocationPrompt />). Mobile browsers silently ignore location
+// requests that aren't triggered by a tap, so non-granted requests go through its Allow button.
+let askUser = null;
+let pendingAsk = null;
+let grantedThisSession = false;
+export function setLocationAsker(fn) {
+  askUser = fn;
+}
+
 /**
- * Request user's current GPS location using the browser Geolocation API
+ * Request user's current GPS location, showing the in-page permission popup when needed
  * @returns {Promise<{latitude: number, longitude: number, accuracy: number}>}
  */
-export function getUserLocation() {
-  return new Promise((resolve, reject) => {
-    if (typeof window === 'undefined' || !navigator.geolocation) {
-      reject({
-        code: 'GEOLOCATION_UNSUPPORTED',
-        message: 'Geolocation is not supported by your browser',
-        isDenied: false,
-      });
-      return;
-    }
+export async function getUserLocation() {
+  if (typeof window === 'undefined' || !navigator.geolocation) {
+    throw {
+      code: 'GEOLOCATION_UNSUPPORTED',
+      message: 'Geolocation is not supported by your browser',
+      isDenied: false,
+    };
+  }
+  const state = navigator.permissions
+    ? await navigator.permissions.query({ name: 'geolocation' }).then((s) => s.state, () => null)
+    : null;
+  if (state === 'granted' || grantedThisSession || !askUser) return readPosition();
+  pendingAsk ||= askUser(state, readPosition).finally(() => { pendingAsk = null; });
+  return pendingAsk;
+}
 
+function readPosition() {
+  return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        grantedThisSession = true;
         resolve({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
